@@ -12,8 +12,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'query is required' }, { status: 400 })
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
-  const prompt = `You are a search-intent parser for Merqt, a trade marketplace in Nigeria where buyers browse a directory of sellers/service providers.
+  let parsed = {
+    category: null as string | null,
+    city: null as string | null,
+    keywords: [] as string[],
+    explanation: 'Showing results matching your keywords.',
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
+    const prompt = `You are a search-intent parser for Merqt, a trade marketplace in Nigeria where buyers browse a directory of sellers/service providers.
 A buyer typed this free-text search: "${query}"
 
 Merqt's fixed seller categories are: ${CATEGORIES.join(', ')}.
@@ -27,30 +35,36 @@ Extract structured search intent from the buyer's text:
 
 Only extract what the fixed lists and buyer's own words support. Never fabricate a price, date, or rating filter - Merqt's current search cannot check those.`
 
-  const result = await ai.models.generateContent({
-    model: 'gemini-flash-latest',
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          category: { type: Type.STRING, enum: [...CATEGORIES, 'null'] },
-          city: { type: Type.STRING, enum: [...CITIES, 'null'] },
-          keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
-          explanation: { type: Type.STRING },
+    const result = await ai.models.generateContent({
+      model: 'gemini-flash-latest',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            category: { type: Type.STRING, enum: [...CATEGORIES, 'null'] },
+            city: { type: Type.STRING, enum: [...CITIES, 'null'] },
+            keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+            explanation: { type: Type.STRING },
+          },
+          required: ['category', 'city', 'keywords', 'explanation'],
         },
-        required: ['category', 'city', 'keywords', 'explanation'],
       },
-    },
-  })
+    })
 
-  const raw = JSON.parse(result.text ?? '{}')
-  const parsed = {
-    category: CATEGORIES.includes(raw.category) ? raw.category : null,
-    city: CITIES.includes(raw.city) ? raw.city : null,
-    keywords: Array.isArray(raw.keywords) ? raw.keywords.slice(0, 5) : [],
-    explanation: typeof raw.explanation === 'string' ? raw.explanation : '',
+    const raw = JSON.parse(result.text ?? '{}')
+    parsed = {
+      category: CATEGORIES.includes(raw.category) ? raw.category : null,
+      city: CITIES.includes(raw.city) ? raw.city : null,
+      keywords: Array.isArray(raw.keywords) ? raw.keywords.slice(0, 5) : [query],
+      explanation: typeof raw.explanation === 'string' ? raw.explanation : parsed.explanation,
+    }
+  } catch (err) {
+    // Fail open toward plain keyword matching - a Gemini outage or transient
+    // 503 must not break the buyer's ability to search at all.
+    console.error('Concierge search_parse failed:', err)
+    parsed.keywords = [query]
   }
 
   await logAgentAction({
