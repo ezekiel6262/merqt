@@ -4,19 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
-
-const CATEGORIES = [
-  'Fashion and Textiles',
-  'Food and Catering',
-  'Electronics and Gadgets',
-  'Home Services',
-  'Beauty and Wellness',
-  'Creative Services',
-  'Professional Services',
-  'Other',
-]
-
-const CITIES = ['Lagos', 'Abuja', 'Port Harcourt', 'Ibadan', 'Kano', 'Enugu', 'Benin City']
+import { CATEGORIES, CITIES } from '@/lib/constants'
 
 function makeSlug(name: string) {
   return name.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')

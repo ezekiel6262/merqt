@@ -3,17 +3,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { CATEGORIES } from '@/lib/constants'
 
-const CATEGORIES = [
-  'All',
-  'Fashion and Textiles',
-  'Food and Catering',
-  'Electronics and Gadgets',
-  'Home Services',
-  'Beauty and Wellness',
-  'Creative Services',
-  'Professional Services',
-]
+const CHIP_CATEGORIES = ['All', ...CATEGORIES]
+
+type ConciergeResult = { category: string | null; city: string | null; keywords: string[]; explanation: string }
 
 function getInitials(name: string) {
   return name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')
@@ -23,8 +17,46 @@ export function DiscoverClient({ sellers }: { sellers: any[] }) {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
 
+  const [nlQuery, setNlQuery] = useState('')
+  const [nlSearching, setNlSearching] = useState(false)
+  const [nlResult, setNlResult] = useState<ConciergeResult | null>(null)
+
+  async function runConciergeSearch() {
+    if (nlQuery.trim().length < 3) return
+    setNlSearching(true)
+    try {
+      const res = await fetch('/api/agents/concierge/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: nlQuery }),
+      })
+      const data = await res.json()
+      if (!data.error) {
+        setNlResult(data)
+        if (data.category) setCategory(data.category)
+      }
+    } catch {
+      setNlResult(null)
+    } finally {
+      setNlSearching(false)
+    }
+  }
+
   const filtered = sellers.filter((s) => {
     const matchesCategory = category === 'All' || s.category === category
+
+    if (nlResult) {
+      const matchesNlCity = !nlResult.city || s.city === nlResult.city
+      const matchesNlKeywords =
+        nlResult.keywords.length === 0 ||
+        nlResult.keywords.some((k: string) =>
+          s.business_name.toLowerCase().includes(k.toLowerCase()) ||
+          s.category.toLowerCase().includes(k.toLowerCase()) ||
+          (s.bio && s.bio.toLowerCase().includes(k.toLowerCase()))
+        )
+      return matchesCategory && matchesNlCity && matchesNlKeywords
+    }
+
     const q = search.toLowerCase().trim()
     const matchesSearch =
       q === '' ||
@@ -39,20 +71,47 @@ export function DiscoverClient({ sellers }: { sellers: any[] }) {
     <div className="min-h-screen bg-li-page py-4 px-4">
       <div className="max-w-4xl mx-auto">
 
-        {/* Search bar */}
+        {/* Concierge search */}
+        <div className="mb-3">
+          <div className="flex gap-2">
+            <input
+              className="flex-1 border border-li-border rounded px-4 py-2.5 text-sm bg-white focus:outline-none focus:border-li-blue"
+              value={nlQuery}
+              onChange={(e) => setNlQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') runConciergeSearch() }}
+              placeholder='Try "wedding photographer in Lagos" or "AC repair in Ikeja"'
+            />
+            <button
+              onClick={runConciergeSearch}
+              disabled={nlQuery.trim().length < 3 || nlSearching}
+              className={`px-4 py-2.5 rounded-pill text-sm font-semibold ${
+                nlQuery.trim().length >= 3 && !nlSearching
+                  ? 'bg-li-blue text-white'
+                  : 'bg-gray-300 text-white cursor-not-allowed'
+              }`}
+            >
+              {nlSearching ? 'Searching...' : 'Search'}
+            </button>
+          </div>
+          {nlResult?.explanation && (
+            <p className="text-xs text-li-blue mt-2">{nlResult.explanation}</p>
+          )}
+        </div>
+
+        {/* Plain keyword search bar */}
         <div className="mb-3">
           <input
             className="w-full border border-li-border rounded px-4 py-2.5 text-sm bg-white focus:outline-none focus:border-li-blue"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search sellers, products, services, or city"
+            placeholder="Or just search sellers, products, services, or city"
           />
         </div>
 
         {/* Category chips */}
         <div className="flex gap-2 flex-wrap mb-4">
-          {CATEGORIES.map((c) => (
-            <button key={c} onClick={() => setCategory(c)}
+          {CHIP_CATEGORIES.map((c) => (
+            <button key={c} onClick={() => { setCategory(c); setNlResult(null); setNlQuery('') }}
               className={'text-xs px-3 py-1.5 rounded-full border ' +
                 (category === c
                   ? 'bg-li-blue-bg text-li-blue border-li-blue font-semibold'

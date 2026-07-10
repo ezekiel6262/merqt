@@ -2,11 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { GoogleGenAI, Type } from '@google/genai'
 import { logAgentAction } from '@/lib/agents/logAgentAction'
-
-const CATEGORIES = [
-  'Fashion and Textiles', 'Food and Catering', 'Electronics and Gadgets', 'Home Services',
-  'Beauty and Wellness', 'Creative Services', 'Professional Services', 'Other',
-]
+import { CATEGORIES } from '@/lib/constants'
 
 export async function POST(req: Request) {
   const { userId } = auth()
@@ -48,7 +44,7 @@ Keep "reasoning" to one short sentence a small business owner can understand. Ne
         type: Type.OBJECT,
         properties: {
           categoryMatch: { type: Type.BOOLEAN },
-          matchedCategory: { type: Type.STRING, enum: CATEGORIES },
+          matchedCategory: { type: Type.STRING, enum: [...CATEGORIES] },
           confidence: { type: Type.NUMBER },
           reasoning: { type: Type.STRING },
         },
