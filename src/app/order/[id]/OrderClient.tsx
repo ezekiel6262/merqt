@@ -61,6 +61,9 @@ export function OrderClient({ product, seller }: { product: any; seller: any }) 
         payment_method: payment,
         payment_status: 'pending',
         status: 'pending',
+        delivery_address: address || null,
+        delivery_city: city || null,
+        note: note || null,
       })
       if (oErr) throw oErr
 
