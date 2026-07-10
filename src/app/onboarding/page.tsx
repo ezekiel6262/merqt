@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useUser, useSession } from '@clerk/nextjs'
+import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
 
 const CATEGORIES = [
@@ -24,7 +24,6 @@ function makeSlug(name: string) {
 
 export default function OnboardingPage() {
   const { user } = useUser()
-  const { session } = useSession()
   const supabase = useSupabaseClient()
   const router = useRouter()
   const [businessName, setBusinessName] = useState('')
@@ -41,14 +40,6 @@ export default function OnboardingPage() {
     setError('')
 
     try {
-      const debugToken = await session?.getToken()
-      if (debugToken) {
-        const payload = JSON.parse(atob(debugToken.split('.')[1]))
-        console.log('DEBUG Clerk JWT payload:', payload)
-      } else {
-        console.log('DEBUG: no Clerk session token available')
-      }
-
       // Step 1: make sure this user exists in our database
       const { data: existingUser } = await supabase
         .from('users')
