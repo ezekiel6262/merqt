@@ -23,11 +23,22 @@ export async function POST(req: Request) {
   const { name, description, category, images } = await req.json()
   if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 })
 
-  let parsed: { verdict: 'approved' | 'flagged'; reason: string; flaggedCategory: string | null; confidence: number | null } = {
+  let parsed: {
+    verdict: 'approved' | 'flagged'
+    reason: string
+    flaggedCategory: string | null
+    confidence: number | null
+    imageMismatch: boolean
+    mismatchReason: string
+  } = {
     verdict: 'flagged',
     reason: 'Could not complete an automated safety check for this listing yet.',
     flaggedCategory: 'other',
     confidence: null,
+    // Fails OPEN, unlike the safety verdict above - a technical hiccup in our
+    // own check shouldn't block a seller from submitting a legitimate listing.
+    imageMismatch: false,
+    mismatchReason: '',
   }
 
   try {
@@ -36,25 +47,25 @@ export async function POST(req: Request) {
     ).filter((p): p is { inlineData: { mimeType: string; data: string } } => p !== null)
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
-    const prompt = `You are a content moderation reviewer for Merqt, a public trade marketplace in Nigeria. A seller has submitted a new listing. Review the text and any attached photos for policy violations before it goes live to buyers.
+    const prompt = `You are a content reviewer for Merqt, a public trade marketplace in Nigeria. A seller has submitted a new listing. You are checking two SEPARATE, INDEPENDENT things - do not mix them up.
 
 Listing name: "${name}"
 Category: "${category ?? 'unspecified'}"
 Description: "${description ?? ''}"
 
-Flag the listing ONLY if it contains or depicts one of these specific violations: explicit or adult sexual content, illegal items (weapons, drugs, counterfeit goods), hate symbols or hateful content, or obvious scam/spam text (e.g. fake giveaways, phishing links, requests for bank/card details, nonsensical repeated text).
+CHECK 1 - Photo/text mismatch (a fixable quality problem, not a safety issue):
+Does at least one attached photo clearly fail to depict the described product/service (e.g. an unrelated object, a random stock photo, a cartoon/illustration standing in for a real item photo)? Only flag a genuine, obvious mismatch - do not flag photos that are merely low-quality, informal, or imperfect but still plausibly show the real item. If there are no photos at all, there is no mismatch to flag.
 
-Do NOT flag a listing for any other reason, even if it seems unusual. In particular, never flag a listing merely because:
-- a photo looks unrelated to, or does not clearly match, the text description
-- a photo is a placeholder, illustration, cartoon, stock image, or low quality
-- the description is vague, sparse, or informal
-These are content-quality concerns, not safety violations, and Merqt sellers are often small, informal traders - normal listings should always be approved even with imperfect photos or descriptions. Only use "other" for a genuine safety violation that doesn't fit the other categories - never for a content-quality or mismatch concern.
+CHECK 2 - Safety policy violation (independent of Check 1):
+Flag ONLY if the listing contains or depicts one of these specific violations: explicit or adult sexual content, illegal items (weapons, drugs, counterfeit goods), hate symbols or hateful content, or obvious scam/spam text (e.g. fake giveaways, phishing links, requests for bank/card details, nonsensical repeated text). Do NOT flag for vague/sparse descriptions or photo quality/mismatch issues - that is Check 1's job, not this one. Merqt sellers are often small, informal traders - normal listings should always pass this check even with imperfect photos or descriptions.
 
 Respond with:
-- verdict: "approved" or "flagged"
-- reason: if flagged, one short sentence explaining why, written to be shown to the seller. Empty string if approved.
+- imageMismatch: true only if Check 1 finds a genuine mismatch, else false
+- mismatchReason: if imageMismatch is true, one short sentence telling the seller what's wrong and that they should upload a photo of the actual item. Empty string otherwise.
+- verdict: "approved" or "flagged" for Check 2, independent of Check 1
+- reason: if flagged (Check 2), one short sentence explaining why, written to be shown to the seller. Empty string if approved.
 - flaggedCategory: one of "explicit_content", "prohibited_item", "hate_content", "scam_or_spam", "other" if flagged, or "none" if approved.
-- confidence: your confidence in this verdict, 0 to 1.`
+- confidence: your confidence in the Check 2 verdict, 0 to 1.`
 
     const result = await ai.models.generateContent({
       model: 'gemini-flash-latest',
@@ -64,6 +75,8 @@ Respond with:
         responseSchema: {
           type: Type.OBJECT,
           properties: {
+            imageMismatch: { type: Type.BOOLEAN },
+            mismatchReason: { type: Type.STRING },
             verdict: { type: Type.STRING, enum: ['approved', 'flagged'] },
             reason: { type: Type.STRING },
             flaggedCategory: {
@@ -72,7 +85,7 @@ Respond with:
             },
             confidence: { type: Type.NUMBER },
           },
-          required: ['verdict', 'reason', 'flaggedCategory', 'confidence'],
+          required: ['imageMismatch', 'mismatchReason', 'verdict', 'reason', 'flaggedCategory', 'confidence'],
         },
       },
     })
@@ -83,6 +96,8 @@ Respond with:
       reason: typeof raw.reason === 'string' ? raw.reason : '',
       flaggedCategory: raw.flaggedCategory === 'none' ? null : (raw.flaggedCategory ?? null),
       confidence: typeof raw.confidence === 'number' ? raw.confidence : null,
+      imageMismatch: raw.imageMismatch === true,
+      mismatchReason: typeof raw.mismatchReason === 'string' ? raw.mismatchReason : '',
     }
   } catch (err) {
     // Fail CLOSED, not open - unlike the onboarding/concierge agents, this is a
@@ -97,9 +112,19 @@ Respond with:
     entityId: userId,
     actionType: 'listing_check',
     input: { name, description, category, imageUrls: images ?? [] },
-    output: { verdict: parsed.verdict, reason: parsed.reason, flaggedCategory: parsed.flaggedCategory },
+    output: {
+      verdict: parsed.verdict,
+      reason: parsed.reason,
+      flaggedCategory: parsed.flaggedCategory,
+      imageMismatch: parsed.imageMismatch,
+      mismatchReason: parsed.mismatchReason,
+    },
     confidence: parsed.confidence,
   })
+
+  if (parsed.imageMismatch) {
+    return NextResponse.json({ rejected: true, reason: parsed.mismatchReason }, { status: 422 })
+  }
 
   return NextResponse.json(parsed)
 }

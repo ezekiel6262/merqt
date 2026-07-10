@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [images, setImages] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+  const [error, setError] = useState('')
 
   async function loadData() {
     if (!user) return
@@ -53,8 +54,10 @@ export default function DashboardPage() {
     if (!seller || !name || !price) return
     setSaving(true)
     setStatusMessage('')
+    setError('')
 
     let moderationStatus = 'flagged'
+    let moderationReason = ''
     try {
       const modRes = await fetch('/api/agents/moderation/check', {
         method: 'POST',
@@ -62,12 +65,24 @@ export default function DashboardPage() {
         body: JSON.stringify({ name, description, category: seller.category, images }),
       })
       const modData = await modRes.json()
-      if (modData.verdict) moderationStatus = modData.verdict
+
+      if (modRes.status === 422 && modData.rejected) {
+        // Photo/text mismatch - a fixable problem, so nothing is saved and the
+        // seller can just swap the photo/text and resubmit right away.
+        setError(modData.reason)
+        setSaving(false)
+        return
+      }
+
+      if (modData.verdict) {
+        moderationStatus = modData.verdict
+        moderationReason = modData.reason ?? ''
+      }
     } catch {
       // moderationStatus stays 'flagged' - fail closed
     }
 
-    const { error } = await supabase.from('products').insert({
+    const { error: insertError } = await supabase.from('products').insert({
       seller_id: seller.id,
       name,
       price: parseFloat(price),
@@ -78,12 +93,12 @@ export default function DashboardPage() {
       moderation_status: moderationStatus,
     })
 
-    if (!error) {
+    if (!insertError) {
       setName(''); setPrice(''); setDescription(''); setType('physical'); setNegotiable(false); setImages([])
       setShowForm(false)
       setStatusMessage(
         moderationStatus === 'flagged'
-          ? 'Your listing was added and is under review before it appears publicly.'
+          ? `Your listing was added and is under review before it appears publicly. Reason: ${moderationReason}`
           : 'Your listing is live.'
       )
       loadData()
@@ -205,6 +220,7 @@ export default function DashboardPage() {
                 <input type="checkbox" checked={negotiable} onChange={(e) => setNegotiable(e.target.checked)} />
                 Allow buyers to make offers
               </label>
+              {error && <p className="text-sm text-li-red">{error}</p>}
               <button onClick={addProduct} disabled={!name || !price || saving}
                 className={`w-full py-2 rounded-pill font-semibold text-sm text-white ${name && price && !saving ? 'bg-li-blue' : 'bg-gray-300'}`}>
                 {saving ? 'Adding...' : 'Add to my profile'}
