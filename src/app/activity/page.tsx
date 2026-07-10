@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
-import { createClient } from '@/lib/supabase/client'
+import { useSupabaseClient } from '@/lib/supabase/client'
 
 function formatNGN(amount: number) {
   return 'N' + amount.toLocaleString('en-NG')
@@ -10,6 +10,7 @@ function formatNGN(amount: number) {
 
 export default function ActivityPage() {
   const { user } = useUser()
+  const supabase = useSupabaseClient()
   const [orders, setOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [reviewing, setReviewing] = useState<string | null>(null)
@@ -19,7 +20,7 @@ export default function ActivityPage() {
 
   async function loadActivity() {
     if (!user) return
-    const supabase = createClient()
+   
 
     const { data: userRow } = await supabase
       .from('users').select('id').eq('clerk_id', user.id).single()
@@ -27,7 +28,7 @@ export default function ActivityPage() {
 
     const { data: orderRows } = await supabase
       .from('orders')
-      .select('*, product:products(name), seller:sellers(business_name, slug), review:reviews(id)')
+      .select('*, product:products(name), seller:sellers(business_name, slug), review:reviews(id, rating, body)')
       .eq('buyer_id', userRow.id)
       .order('created_at', { ascending: false })
 
@@ -40,7 +41,7 @@ export default function ActivityPage() {
   async function submitReview(order: any) {
     if (!user) return
     setSaving(true)
-    const supabase = createClient()
+    
 
     const { data: userRow } = await supabase
       .from('users').select('id').eq('clerk_id', user.id).single()
@@ -81,7 +82,7 @@ export default function ActivityPage() {
         )}
 
         {orders.map((o) => {
-          const hasReview = o.review && o.review.length > 0
+          const hasReview = !!o.review
           const isDelivered = o.status === 'delivered' || o.status === 'completed'
           return (
             <div key={o.id} className="bg-white border border-li-border rounded-card p-4">
@@ -110,7 +111,20 @@ export default function ActivityPage() {
               )}
 
               {isDelivered && hasReview && (
-                <p className="text-center text-sm text-li-green font-semibold">Review submitted</p>
+                <div className="border-t border-li-border pt-3 mt-2">
+                  <p className="text-xs font-semibold text-li-text-2 mb-1">Your review</p>
+                  <div className="flex gap-0.5 mb-1">
+                    {[1,2,3,4,5].map((star) => (
+                      <span key={star} className={'text-lg ' +
+                        (star <= o.review.rating ? 'text-yellow-400' : 'text-li-border')}>
+                        &#9733;
+                      </span>
+                    ))}
+                  </div>
+                  {o.review.body && (
+                    <p className="text-sm text-li-text-1">{o.review.body}</p>
+                  )}
+                </div>
               )}
 
               {reviewing === o.id && (

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useUser } from '@clerk/nextjs'
-import { createClient } from '@/lib/supabase/client'
+import { useSupabaseClient } from '@/lib/supabase/client'
 
 function formatNGN(amount: number) {
   return 'N' + amount.toLocaleString('en-NG')
@@ -10,6 +10,7 @@ function formatNGN(amount: number) {
 
 export function RequestClient({ service, seller }: { service: any; seller: any }) {
   const { user, isSignedIn } = useUser()
+  const supabase = useSupabaseClient()
 
   const [description, setDescription] = useState('')
   const [preferredDate, setPreferredDate] = useState('')
@@ -25,7 +26,7 @@ export function RequestClient({ service, seller }: { service: any; seller: any }
     setError('')
 
     try {
-      const supabase = createClient()
+      
 
       const { data: existingUser } = await supabase
         .from('users').select('id').eq('clerk_id', user.id).single()

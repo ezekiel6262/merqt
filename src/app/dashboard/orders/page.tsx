@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
-import { createClient } from '@/lib/supabase/client'
+import { useSupabaseClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
 function formatNGN(amount: number) {
@@ -35,14 +35,14 @@ const SERVICE_LABEL: Record<string, string> = {
 
 export default function SellerOrdersPage() {
   const { user } = useUser()
+  const supabase = useSupabaseClient()
   const [orders, setOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'products' | 'services'>('all')
 
   async function loadOrders() {
     if (!user) return
-    const supabase = createClient()
-
+    
     const { data: userRow } = await supabase
       .from('users').select('id').eq('clerk_id', user.id).single()
     if (!userRow) { setLoading(false); return }
@@ -67,7 +67,7 @@ export default function SellerOrdersPage() {
     const flow = order.is_service ? SERVICE_FLOW : PRODUCT_FLOW
     const next = flow[order.status]
     if (!next) return
-    const supabase = createClient()
+    
     const updates: any = { status: next }
     if (next === 'delivered' || next === 'completed') {
       updates.delivered_at = new Date().toISOString()

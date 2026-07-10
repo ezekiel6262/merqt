@@ -5,17 +5,17 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useUser, UserButton } from '@clerk/nextjs'
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useSupabaseClient } from '@/lib/supabase/client'
 
 export function Navbar() {
   const pathname = usePathname()
   const { user, isSignedIn } = useUser()
   const [isSeller, setIsSeller] = useState(false)
+  const supabase = useSupabaseClient()
 
   useEffect(() => {
     async function checkSeller() {
       if (!user) return
-      const supabase = createClient()
       const { data: userRow } = await supabase
         .from('users').select('id').eq('clerk_id', user.id).single()
       if (!userRow) return

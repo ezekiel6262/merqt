@@ -1,17 +1,16 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 
-const isPublicRoute = createRouteMatcher([
-  '/',
-  '/login(.*)',
-  '/register(.*)',
-  '/store(.*)',
-  '/explore(.*)',
+const isPrivateRoute = createRouteMatcher([
+  '/dashboard(.*)',
+  '/activity(.*)',
+  '/onboarding(.*)',
+  '/order(.*)',
+  '/request(.*)',
 ])
 
 export default clerkMiddleware((auth, req) => {
-  if (isPublicRoute(req)) return NextResponse.next()
-  if (!auth().userId) {
+  if (isPrivateRoute(req) && !auth().userId) {
     return auth().redirectToSignIn({ returnBackUrl: req.url })
   }
   return NextResponse.next()

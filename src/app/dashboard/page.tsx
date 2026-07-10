@@ -2,7 +2,7 @@
 import { CldUploadWidget } from 'next-cloudinary'
 import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
-import { createClient } from '@/lib/supabase/client'
+import { useSupabaseClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
 function formatNGN(amount: number) {
@@ -11,6 +11,7 @@ function formatNGN(amount: number) {
 
 export default function DashboardPage() {
   const { user } = useUser()
+  const supabase = useSupabaseClient()
   const [seller, setSeller] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,7 +28,6 @@ export default function DashboardPage() {
 
   async function loadData() {
     if (!user) return
-    const supabase = createClient()
 
     const { data: userRow } = await supabase
       .from('users').select('id').eq('clerk_id', user.id).single()
@@ -51,7 +51,6 @@ export default function DashboardPage() {
   async function addProduct() {
     if (!seller || !name || !price) return
     setSaving(true)
-    const supabase = createClient()
 
     const { error } = await supabase.from('products').insert({
       seller_id: seller.id,
