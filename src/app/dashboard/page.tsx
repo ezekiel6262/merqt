@@ -25,6 +25,7 @@ export default function DashboardPage() {
   const [negotiable, setNegotiable] = useState(false)
   const [images, setImages] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [statusMessage, setStatusMessage] = useState('')
 
   async function loadData() {
     if (!user) return
@@ -51,6 +52,20 @@ export default function DashboardPage() {
   async function addProduct() {
     if (!seller || !name || !price) return
     setSaving(true)
+    setStatusMessage('')
+
+    let moderationStatus = 'flagged'
+    try {
+      const modRes = await fetch('/api/agents/moderation/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description, category: seller.category, images }),
+      })
+      const modData = await modRes.json()
+      if (modData.verdict) moderationStatus = modData.verdict
+    } catch {
+      // moderationStatus stays 'flagged' - fail closed
+    }
 
     const { error } = await supabase.from('products').insert({
       seller_id: seller.id,
@@ -60,11 +75,17 @@ export default function DashboardPage() {
       type,
       negotiable,
       images,
+      moderation_status: moderationStatus,
     })
 
     if (!error) {
       setName(''); setPrice(''); setDescription(''); setType('physical'); setNegotiable(false); setImages([])
       setShowForm(false)
+      setStatusMessage(
+        moderationStatus === 'flagged'
+          ? 'Your listing was added and is under review before it appears publicly.'
+          : 'Your listing is live.'
+      )
       loadData()
     }
     setSaving(false)
@@ -99,6 +120,12 @@ export default function DashboardPage() {
             Your public link: <span className="font-semibold">merqt.com/@{seller.slug}</span>
           </p>
         </div>
+
+        {statusMessage && (
+          <div className="bg-li-blue-bg border border-li-blue rounded-card p-3">
+            <p className="text-sm text-li-blue">{statusMessage}</p>
+          </div>
+        )}
 
         {/* Listings section */}
         <div className="bg-white border border-li-border rounded-card">
@@ -195,7 +222,14 @@ export default function DashboardPage() {
             {products.map((p) => (
               <div key={p.id} className="flex items-center justify-between p-3">
                 <div>
-                  <p className="text-sm font-semibold">{p.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold">{p.name}</p>
+                    {p.moderation_status === 'flagged' && (
+                      <span className="text-xs px-2 py-0.5 rounded-xl bg-yellow-100 text-yellow-700 font-semibold">
+                        Under review
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-li-text-2 capitalize">
                     {p.type}{p.negotiable ? ' · offers allowed' : ''}
                   </p>

@@ -25,6 +25,7 @@ export default async function ProfilePage({
     .from('products')
     .select('*')
     .eq('seller_id', seller.id)
+    .eq('moderation_status', 'approved')
     .order('created_at', { ascending: false })
 
   const { data: reviews } = await supabase

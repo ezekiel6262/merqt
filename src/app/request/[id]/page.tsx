@@ -13,6 +13,7 @@ export default async function RequestPage({
     .from('products')
     .select('*')
     .eq('id', params.id)
+    .eq('moderation_status', 'approved')
     .single()
 
   if (!service) notFound()
