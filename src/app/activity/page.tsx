@@ -17,6 +17,9 @@ export default function ActivityPage() {
   const [rating, setRating] = useState(5)
   const [body, setBody] = useState('')
   const [saving, setSaving] = useState(false)
+  const [reporting, setReporting] = useState<string | null>(null)
+  const [reportReason, setReportReason] = useState('')
+  const [reportSaving, setReportSaving] = useState(false)
 
   async function loadActivity() {
     if (!user) return
@@ -62,6 +65,23 @@ export default function ActivityPage() {
     setBody('')
     setSaving(false)
     loadActivity()
+  }
+
+  async function submitDispute(order: any) {
+    if (reportReason.trim().length < 3) return
+    setReportSaving(true)
+    try {
+      await fetch('/api/agents/shepherd/report-dispute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, reason: reportReason }),
+      })
+    } finally {
+      setReporting(null)
+      setReportReason('')
+      setReportSaving(false)
+      loadActivity()
+    }
   }
 
   if (loading) return <div className="p-10 text-li-text-2">Loading...</div>
@@ -154,6 +174,36 @@ export default function ActivityPage() {
                     <button onClick={() => submitReview(o)} disabled={saving}
                       className="flex-1 py-2 rounded-pill bg-li-blue text-white font-semibold text-sm">
                       {saving ? 'Submitting...' : 'Submit review'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {o.dispute_status === 'reported' ? (
+                <p className="text-center text-sm text-li-red font-semibold border-t border-li-border pt-3 mt-2">
+                  Reported - the seller has been notified
+                </p>
+              ) : reporting !== o.id ? (
+                <button onClick={() => setReporting(o.id)}
+                  className="w-full py-2 mt-2 rounded-pill border border-li-border text-li-text-2 font-semibold text-sm">
+                  Report a problem
+                </button>
+              ) : (
+                <div className="border-t border-li-border pt-3 mt-2 space-y-3">
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">What went wrong?</label>
+                    <textarea className="w-full border border-li-border rounded px-3 py-2 text-sm resize-none"
+                      rows={2} value={reportReason} onChange={(e) => setReportReason(e.target.value)}
+                      placeholder="Tell us what happened..." />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setReporting(null); setReportReason('') }}
+                      className="flex-1 py-2 rounded-pill border border-li-border text-li-text-2 font-semibold text-sm">
+                      Cancel
+                    </button>
+                    <button onClick={() => submitDispute(o)} disabled={reportSaving || reportReason.trim().length < 3}
+                      className="flex-1 py-2 rounded-pill bg-li-red text-white font-semibold text-sm">
+                      {reportSaving ? 'Submitting...' : 'Submit report'}
                     </button>
                   </div>
                 </div>

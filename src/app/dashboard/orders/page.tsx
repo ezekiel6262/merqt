@@ -33,12 +33,19 @@ const SERVICE_LABEL: Record<string, string> = {
   in_progress: 'Mark completed',
 }
 
+const STUCK_THRESHOLD_MS = 48 * 60 * 60 * 1000
+
+function isTerminal(status: string) {
+  return status === 'delivered' || status === 'completed' || status === 'cancelled'
+}
+
 export default function SellerOrdersPage() {
   const { user } = useUser()
   const supabase = useSupabaseClient()
   const [orders, setOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'products' | 'services'>('all')
+  const [nudges, setNudges] = useState<Record<string, string>>({})
 
   async function loadOrders() {
     if (!user) return
@@ -59,16 +66,38 @@ export default function SellerOrdersPage() {
 
     setOrders(orderRows ?? [])
     setLoading(false)
+    checkStuckOrders(orderRows ?? [])
   }
 
   useEffect(() => { loadOrders() }, [user])
+
+  function checkStuckOrders(orderRows: any[]) {
+    const now = Date.now()
+    orderRows
+      .filter((o) => !isTerminal(o.status) && now - new Date(o.status_changed_at).getTime() > STUCK_THRESHOLD_MS)
+      .forEach(async (o) => {
+        try {
+          const res = await fetch('/api/agents/shepherd/stuck-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: o.id }),
+          })
+          const data = await res.json()
+          if (data.stuck && data.note) {
+            setNudges((prev) => ({ ...prev, [o.id]: data.note }))
+          }
+        } catch {
+          // no nudge text available - badge alone (computed client-side) still shows
+        }
+      })
+  }
 
   async function advanceStatus(order: any) {
     const flow = order.is_service ? SERVICE_FLOW : PRODUCT_FLOW
     const next = flow[order.status]
     if (!next) return
-    
-    const updates: any = { status: next }
+
+    const updates: any = { status: next, status_changed_at: new Date().toISOString() }
     if (next === 'delivered' || next === 'completed') {
       updates.delivered_at = new Date().toISOString()
     }
@@ -122,6 +151,11 @@ export default function SellerOrdersPage() {
                   <span className="text-xs px-2 py-0.5 rounded-xl bg-li-page text-li-text-2 capitalize">
                     {o.status}
                   </span>
+                  {!isTerminal(o.status) && Date.now() - new Date(o.status_changed_at).getTime() > STUCK_THRESHOLD_MS && (
+                    <span className="text-xs px-2 py-0.5 rounded-xl bg-yellow-100 text-yellow-700 font-semibold">
+                      Needs attention
+                    </span>
+                  )}
                 </div>
                 <p className="font-semibold text-sm">{o.product?.name}</p>
                 <p className="text-xs text-li-text-2">
@@ -130,6 +164,17 @@ export default function SellerOrdersPage() {
               </div>
               <p className="text-sm font-semibold text-li-blue">{formatNGN(o.total_amount)}</p>
             </div>
+
+            {nudges[o.id] && (
+              <p className="text-xs text-yellow-700 bg-yellow-50 rounded p-2 mb-2">{nudges[o.id]}</p>
+            )}
+
+            {o.dispute_status === 'reported' && (
+              <div className="bg-li-red-bg border border-li-red rounded p-2 mb-2">
+                <p className="text-xs text-li-red font-semibold mb-0.5">Reported by buyer</p>
+                <p className="text-xs text-li-red">{o.dispute_reason}</p>
+              </div>
+            )}
 
             {/* Service request details */}
             {o.is_service && (
