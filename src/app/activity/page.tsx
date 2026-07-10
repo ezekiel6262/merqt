@@ -51,14 +51,25 @@ export default function ActivityPage() {
 
     if (!userRow) { setSaving(false); return }
 
-    await supabase.from('reviews').insert({
+    const { data: newReview, error: reviewInsertError } = await supabase.from('reviews').insert({
       order_id: order.id,
       buyer_id: userRow.id,
       seller_id: order.seller_id,
       product_id: order.product_id,
       rating,
       body: body || null,
-    })
+    }).select('id').single()
+
+    console.log('DEBUG review insert result:', { newReview, reviewInsertError })
+
+    if (newReview) {
+      // Fire-and-forget: never blocks or delays the buyer's review submission.
+      fetch('/api/agents/review-intelligence/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewId: newReview.id, rating, body }),
+      }).catch(() => {})
+    }
 
     setReviewing(null)
     setRating(5)
