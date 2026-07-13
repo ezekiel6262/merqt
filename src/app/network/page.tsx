@@ -7,7 +7,6 @@ import { CldUploadWidget } from 'next-cloudinary'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
-import { getInitials } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Avatar } from '@/components/ui/Avatar'
@@ -20,12 +19,8 @@ function timeAgoShort(dateStr: string) {
   return `${Math.floor(hours / 24)}d`
 }
 
-function SellerThumb({ name }: { name: string }) {
-  return (
-    <div className="w-11 h-11 rounded flex-shrink-0 bg-merqt-indigo-soft flex items-center justify-center text-merqt-indigo-dark text-xs font-semibold">
-      {getInitials(name)}
-    </div>
-  )
+function SellerThumb({ name, logoUrl }: { name: string; logoUrl?: string | null }) {
+  return <Avatar src={logoUrl} name={name} size={44} shape="square" />
 }
 
 export default function NetworkPage() {
@@ -47,7 +42,7 @@ export default function NetworkPage() {
   async function loadFeed() {
     const { data: postRows } = await supabase
       .from('posts')
-      .select('*, author:users(name, avatar_url), seller:sellers(business_name, slug)')
+      .select('*, author:users(name, avatar_url), seller:sellers(business_name, slug, logo_url)')
       .order('created_at', { ascending: false })
       .limit(30)
     setPosts(postRows ?? [])
@@ -63,7 +58,7 @@ export default function NetworkPage() {
     setOwnSellerId(sellerRow?.id ?? null)
 
     const { data: followRows } = await supabase
-      .from('follows').select('seller_id, sellers(id, business_name, slug, category, city)').eq('follower_id', userRow.id)
+      .from('follows').select('seller_id, sellers(id, business_name, slug, category, city, logo_url)').eq('follower_id', userRow.id)
     const followedSellers = (followRows ?? []).map((f: any) => f.sellers).filter(Boolean)
     setFollowing(followedSellers)
     setFollowedSellerIds(new Set(followedSellers.map((s: any) => s.id)))
@@ -71,7 +66,7 @@ export default function NetworkPage() {
     const excludeIds = [...followedSellers.map((s: any) => s.id), sellerRow?.id].filter(Boolean)
     const { data: recRows } = await supabase
       .from('sellers')
-      .select('id, business_name, slug, category, city')
+      .select('id, business_name, slug, category, city, logo_url')
       .order('rating', { ascending: false })
       .limit(20)
     setRecommended((recRows ?? []).filter((s) => !excludeIds.includes(s.id)).slice(0, 5))
@@ -132,7 +127,7 @@ export default function NetworkPage() {
               {following.map((s) => (
                 <Card key={s.id} className="p-3">
                   <div className="flex gap-2.5 items-center mb-2">
-                    <SellerThumb name={s.business_name} />
+                    <SellerThumb name={s.business_name} logoUrl={s.logo_url} />
                     <div className="min-w-0 flex-1">
                       <div className="text-[13px] font-semibold truncate">{s.business_name}</div>
                       <div className="text-[11.5px] text-merqt-text-muted truncate">{s.category} · {s.city}</div>
@@ -206,7 +201,7 @@ export default function NetworkPage() {
                   <div className="flex justify-between items-start mb-2.5">
                     <div className="flex items-center gap-2.5">
                       <Avatar
-                        src={isSeller ? null : post.author?.avatar_url}
+                        src={isSeller ? post.seller?.logo_url : post.author?.avatar_url}
                         name={authorName}
                         size={36}
                         shape={isSeller ? 'square' : 'circle'}
@@ -249,7 +244,7 @@ export default function NetworkPage() {
             {recommended.map((s) => (
               <Card key={s.id} className="p-3">
                 <a href={`/@${s.slug}`} className="flex gap-2.5 items-center mb-2">
-                  <SellerThumb name={s.business_name} />
+                  <SellerThumb name={s.business_name} logoUrl={s.logo_url} />
                   <div className="min-w-0 flex-1">
                     <div className="text-[13px] font-semibold truncate">{s.business_name}</div>
                     <div className="text-[11.5px] text-merqt-text-muted truncate">{s.category} · {s.city}</div>

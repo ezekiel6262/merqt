@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
-import { getInitials } from '@/lib/format'
 import { URGENCY_OPTIONS, urgencyClasses, urgencyLabel, respondToRequest } from '@/lib/requests'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -40,7 +39,7 @@ export default function Home() {
   async function loadHome() {
     const [{ data: requestRows }, { data: postRows }, { data: sellerRows }] = await Promise.all([
       supabase.from('buyer_requests').select('*, buyer:users(name, avatar_url)').eq('status', 'open').order('created_at', { ascending: false }).limit(4),
-      supabase.from('posts').select('*, author:users(name, avatar_url), seller:sellers(business_name, slug)').order('created_at', { ascending: false }).limit(5),
+      supabase.from('posts').select('*, author:users(name, avatar_url), seller:sellers(business_name, slug, logo_url)').order('created_at', { ascending: false }).limit(5),
       supabase.from('sellers').select('*').order('rating', { ascending: false }).limit(4),
     ])
     setRequests(requestRows ?? [])
@@ -178,7 +177,7 @@ export default function Home() {
                 <Card key={post.id} className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Avatar
-                      src={isSeller ? null : post.author?.avatar_url}
+                      src={isSeller ? post.seller?.logo_url : post.author?.avatar_url}
                       name={authorName}
                       size={28}
                       shape={isSeller ? 'square' : 'circle'}
@@ -210,9 +209,7 @@ export default function Home() {
               <Link key={s.id} href={`/@${s.slug}`}>
                 <Card className="p-3 hover:border-merqt-indigo transition-colors">
                   <div className="flex gap-2.5 items-center mb-2">
-                    <div className="w-11 h-11 rounded bg-merqt-indigo-soft flex items-center justify-center text-merqt-indigo-dark text-xs font-semibold flex-shrink-0">
-                      {getInitials(s.business_name)}
-                    </div>
+                    <Avatar src={s.logo_url} name={s.business_name} size={44} shape="square" />
                     <div className="min-w-0 flex-1">
                       <div className="text-[13px] font-semibold truncate">{s.business_name}</div>
                       <div className="text-[11.5px] text-merqt-text-muted truncate">{s.category} · {s.city}</div>

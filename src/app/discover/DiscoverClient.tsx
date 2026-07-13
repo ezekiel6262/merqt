@@ -6,8 +6,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { CATEGORIES, CITIES } from '@/lib/constants'
-import { getInitials, formatNaira } from '@/lib/format'
+import { formatNaira } from '@/lib/format'
 import { computeTrustBadges } from '@/lib/badges'
+import { haversineKm } from '@/lib/geo'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
 import { URGENCY_OPTIONS, urgencyClasses, urgencyLabel, respondToRequest } from '@/lib/requests'
@@ -17,7 +18,18 @@ import { Card } from '@/components/ui/Card'
 import { Avatar } from '@/components/ui/Avatar'
 
 const CHIP_CATEGORIES = ['All', ...CATEGORIES]
-type Sort = 'recommended' | 'rating' | 'orders'
+const CATEGORY_SHORT_LABEL: Record<string, string> = {
+  'Fashion and Textiles': 'Fashion',
+  'Food and Catering': 'Catering',
+  'Electronics and Gadgets': 'Electronics',
+  'Home Services': 'Home Services',
+  'Beauty and Wellness': 'Beauty',
+  'Creative Services': 'Creative',
+  'Professional Services': 'Professional',
+  Other: 'Other',
+}
+type Sort = 'recommended' | 'rating' | 'orders' | 'distance'
+type LocationStatus = 'idle' | 'requesting' | 'granted' | 'denied'
 type Tab = 'requests' | 'sellers'
 type ConciergeResult = { category: string | null; city: string | null; keywords: string[]; explanation: string }
 
@@ -33,6 +45,23 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
   const [location, setLocation] = useState('All locations')
   const [sort, setSort] = useState<Sort>('recommended')
   const [verifiedOnly, setVerifiedOnly] = useState(false)
+
+  const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle')
+  const [radiusKm, setRadiusKm] = useState(20)
+
+  function requestLocation() {
+    if (!navigator.geolocation) { setLocationStatus('denied'); return }
+    setLocationStatus('requesting')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setLocationStatus('granted')
+      },
+      () => setLocationStatus('denied'),
+      { timeout: 10000 }
+    )
+  }
 
   const [nlQuery, setNlQuery] = useState('')
   const [nlSearching, setNlSearching] = useState(false)
@@ -126,11 +155,22 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
     }
   }
 
+  const sellersWithDistance = useMemo(() => {
+    return sellers.map((s) => ({
+      ...s,
+      distanceKm:
+        myLocation && s.latitude != null && s.longitude != null
+          ? haversineKm(myLocation.lat, myLocation.lng, Number(s.latitude), Number(s.longitude))
+          : null,
+    }))
+  }, [sellers, myLocation])
+
   const filteredSellers = useMemo(() => {
-    const list = sellers.filter((s) => {
+    const list = sellersWithDistance.filter((s) => {
       const matchesCategory = category === 'All' || s.category === category
       const matchesLocation = location === 'All locations' || s.city === location
       const matchesVerified = !verifiedOnly || s.verified
+      const matchesRadius = s.distanceKm === null || s.distanceKm <= radiusKm
 
       if (nlResult) {
         const matchesNlCity = !nlResult.city || s.city === nlResult.city
@@ -141,7 +181,7 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
             s.category.toLowerCase().includes(k.toLowerCase()) ||
             (s.bio && s.bio.toLowerCase().includes(k.toLowerCase()))
           )
-        return matchesCategory && matchesLocation && matchesVerified && matchesNlCity && matchesNlKeywords
+        return matchesCategory && matchesLocation && matchesVerified && matchesRadius && matchesNlCity && matchesNlKeywords
       }
 
       const q = search.toLowerCase().trim()
@@ -151,15 +191,20 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
         s.category.toLowerCase().includes(q) ||
         s.city.toLowerCase().includes(q) ||
         (s.bio && s.bio.toLowerCase().includes(q))
-      return matchesCategory && matchesLocation && matchesVerified && matchesSearch
+      return matchesCategory && matchesLocation && matchesVerified && matchesRadius && matchesSearch
     })
 
     return list.slice().sort((a, b) => {
       if (sort === 'rating') return Number(b.rating) - Number(a.rating)
       if (sort === 'orders') return b.order_count - a.order_count
+      if (sort === 'distance') {
+        if (a.distanceKm === null) return 1
+        if (b.distanceKm === null) return -1
+        return a.distanceKm - b.distanceKm
+      }
       return 0
     })
-  }, [sellers, category, location, verifiedOnly, nlResult, search, sort])
+  }, [sellersWithDistance, category, location, verifiedOnly, radiusKm, nlResult, search, sort])
 
   return (
     <div className="min-h-screen bg-merqt-bg py-8 px-5">
@@ -191,7 +236,7 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
               className="w-full mb-4 border border-merqt-border rounded px-3.5 py-2.5 text-sm bg-merqt-surface outline-none focus:border-merqt-indigo"
             />
 
-            <Card className="p-4.5 mb-5">
+            <Card className="p-4 mb-5">
               <div className="text-sm font-semibold mb-3">Post what you need</div>
               <textarea
                 value={draftDesc}
@@ -311,14 +356,14 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
               />
             </div>
 
-            <div className="flex gap-2 flex-wrap items-center mb-6">
+            <div className="flex gap-2 flex-wrap items-center mb-3">
               {CHIP_CATEGORIES.map((c) => (
                 <button key={c} onClick={() => { setCategory(c); setNlResult(null); setNlQuery('') }}
                   className={'text-xs px-3 py-1.5 rounded-pill border font-semibold whitespace-nowrap ' +
                     (category === c
                       ? 'bg-merqt-indigo-soft text-merqt-indigo-dark border-merqt-indigo'
                       : 'bg-merqt-surface text-merqt-text-muted border-merqt-border')}>
-                  {c === 'All' ? 'All' : c.split(' and ')[0]}
+                  {c === 'All' ? 'All' : CATEGORY_SHORT_LABEL[c] ?? c}
                 </button>
               ))}
 
@@ -333,13 +378,47 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
 
               <select
                 value={sort}
-                onChange={(e) => setSort(e.target.value as Sort)}
+                onChange={(e) => {
+                  const next = e.target.value as Sort
+                  setSort(next)
+                  if (next === 'distance' && locationStatus === 'idle') requestLocation()
+                }}
                 className="px-3 py-1.5 rounded-pill text-xs font-semibold border border-merqt-border bg-merqt-surface text-merqt-text"
               >
                 <option value="recommended">Sort: Recommended</option>
                 <option value="rating">Sort: Rating, high to low</option>
                 <option value="orders">Sort: Most orders</option>
+                <option value="distance">Sort: Distance, nearest</option>
               </select>
+            </div>
+
+            <div className="flex gap-3 flex-wrap items-center mb-6">
+              {locationStatus === 'granted' ? (
+                <label className="flex items-center gap-2.5 px-3 py-1.5 rounded-pill border border-merqt-border bg-merqt-surface text-xs text-merqt-text whitespace-nowrap">
+                  Within {radiusKm} km
+                  <input
+                    type="range"
+                    min={1}
+                    max={100}
+                    value={radiusKm}
+                    onChange={(e) => setRadiusKm(Number(e.target.value))}
+                    className="w-32 accent-merqt-indigo"
+                  />
+                </label>
+              ) : (
+                <button
+                  type="button"
+                  onClick={requestLocation}
+                  disabled={locationStatus === 'requesting'}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-pill border border-merqt-border bg-merqt-surface text-merqt-text-muted whitespace-nowrap"
+                >
+                  {locationStatus === 'requesting'
+                    ? 'Getting your location...'
+                    : locationStatus === 'denied'
+                    ? "Location unavailable - can't filter by distance"
+                    : 'Enable location to filter by distance'}
+                </button>
+              )}
 
               <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill border border-merqt-border bg-merqt-surface text-xs text-merqt-text cursor-pointer whitespace-nowrap">
                 <input type="checkbox" checked={verifiedOnly} onChange={(e) => setVerifiedOnly(e.target.checked)} />
@@ -363,9 +442,7 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
                   return (
                     <Link key={s.id} href={'/@' + s.slug}>
                       <Card className="p-4 h-full hover:border-merqt-indigo transition-colors cursor-pointer">
-                        <div className="w-11 h-11 rounded bg-merqt-indigo-soft flex items-center justify-center text-merqt-indigo-dark font-semibold text-sm mb-3">
-                          {getInitials(s.business_name)}
-                        </div>
+                        <Avatar src={s.logo_url} name={s.business_name} size={44} shape="square" className="mb-3" />
 
                         <p className="font-semibold text-[15px] mb-0.5">{s.business_name}</p>
                         <p className="text-xs text-merqt-text-muted mb-2">{s.category} · {s.city}</p>
@@ -380,6 +457,7 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
                           <span>{Number(s.rating).toFixed(1)} ★</span>
                           <span>{s.order_count} orders</span>
                           <span>{Math.round(s.completion_rate)}%</span>
+                          {s.distanceKm !== null && <span>{s.distanceKm.toFixed(1)} km</span>}
                         </div>
                       </Card>
                     </Link>

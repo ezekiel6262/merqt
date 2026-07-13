@@ -143,7 +143,33 @@ export default function DashboardPage() {
       <div className="max-w-2xl mx-auto">
 
         <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
-          <h1 className="font-serif text-2xl font-semibold text-merqt-text">Your dashboard</h1>
+          <div className="flex items-center gap-3">
+            {seller.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={seller.logo_url} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-12 h-12 rounded bg-merqt-indigo-soft flex items-center justify-center text-merqt-indigo-dark font-semibold flex-shrink-0">
+                {seller.business_name?.slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <div>
+              <h1 className="font-serif text-2xl font-semibold text-merqt-text leading-tight">Your dashboard</h1>
+              <CldUploadWidget
+                uploadPreset="merqt_products"
+                onSuccess={async (result: any) => {
+                  const logo_url = result.info.secure_url
+                  setSeller((prev: any) => ({ ...prev, logo_url }))
+                  await supabase.from('sellers').update({ logo_url }).eq('id', seller.id)
+                }}
+              >
+                {({ open }) => (
+                  <button type="button" onClick={() => open()} className="text-[12.5px] font-semibold text-merqt-indigo">
+                    {seller.logo_url ? 'Change logo' : '+ Add a business logo'}
+                  </button>
+                )}
+              </CldUploadWidget>
+            </div>
+          </div>
           <Link href="/dashboard/orders"><Button variant="primary">Orders and requests</Button></Link>
         </div>
 

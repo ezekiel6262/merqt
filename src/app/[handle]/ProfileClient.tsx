@@ -7,11 +7,11 @@ import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
-import { getInitials } from '@/lib/format'
 import { computeTrustBadges, ExtendedBadgeSignals } from '@/lib/badges'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Stat } from '@/components/ui/Stat'
+import { Avatar } from '@/components/ui/Avatar'
 
 const STRIPE_BG =
   'repeating-linear-gradient(45deg, oklch(0.92 0.03 265), oklch(0.92 0.03 265) 10px, oklch(0.995 0.004 70) 10px, oklch(0.995 0.004 70) 20px)'
@@ -107,9 +107,7 @@ export function ProfileClient({
           <div className="p-6">
             <div className="flex justify-between items-start gap-4 mb-4 flex-wrap">
               <div className="flex gap-4">
-                <div className="w-16 h-16 rounded-card bg-merqt-indigo-soft flex items-center justify-center text-merqt-indigo-dark text-xl font-semibold flex-shrink-0">
-                  {getInitials(seller.business_name)}
-                </div>
+                <Avatar src={seller.logo_url} name={seller.business_name} size={64} shape="square" />
                 <div>
                   <h1 className="font-serif text-2xl font-semibold text-merqt-text leading-tight mb-1">{seller.business_name}</h1>
                   <div className="text-sm text-merqt-text-muted">

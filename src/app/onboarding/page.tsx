@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import { CldUploadWidget } from 'next-cloudinary'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
 import { makeSlug } from '@/lib/slug'
+import { getInitials } from '@/lib/format'
 import { CATEGORIES, CITIES } from '@/lib/constants'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -18,6 +20,7 @@ export default function OnboardingPage() {
   const supabase = useSupabaseClient()
   const router = useRouter()
   const [businessName, setBusinessName] = useState('')
+  const [logoUrl, setLogoUrl] = useState('')
   const [category, setCategory] = useState('')
   const [city, setCity] = useState('')
   const [address, setAddress] = useState('')
@@ -103,6 +106,7 @@ export default function OnboardingPage() {
       const { error: sellerErr } = await supabase.from('sellers').insert({
         user_id: userId,
         business_name: businessName,
+        logo_url: logoUrl || null,
         slug: makeSlug(businessName),
         bio: bio || null,
         category,
@@ -146,6 +150,29 @@ export default function OnboardingPage() {
         </div>
 
         <Card className="p-5 space-y-4">
+          <div className="flex items-center gap-3.5">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-14 h-14 rounded bg-merqt-indigo-soft flex items-center justify-center text-merqt-indigo-dark font-semibold flex-shrink-0">
+                {getInitials(businessName || 'M')}
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-semibold mb-1">
+                Business logo <span className="font-normal text-merqt-text-muted">(optional)</span>
+              </label>
+              <CldUploadWidget uploadPreset="merqt_products" onSuccess={(result: any) => setLogoUrl(result.info.secure_url)}>
+                {({ open }) => (
+                  <button type="button" onClick={() => open()} className="text-[13px] font-semibold text-merqt-indigo">
+                    {logoUrl ? 'Change photo' : '+ Upload a photo'}
+                  </button>
+                )}
+              </CldUploadWidget>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-semibold mb-1">Business name</label>
             <input
