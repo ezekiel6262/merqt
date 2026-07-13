@@ -28,6 +28,10 @@ export default function DashboardPage() {
   const [statusMessage, setStatusMessage] = useState('')
   const [error, setError] = useState('')
 
+  const [identityDraftUrl, setIdentityDraftUrl] = useState<string | null>(null)
+  const [identitySubmitting, setIdentitySubmitting] = useState(false)
+  const [identityError, setIdentityError] = useState('')
+
   async function loadData() {
     if (!user) return
 
@@ -106,6 +110,27 @@ export default function DashboardPage() {
     setSaving(false)
   }
 
+  async function submitIdentityDocument() {
+    if (!identityDraftUrl) return
+    setIdentitySubmitting(true)
+    setIdentityError('')
+    try {
+      const res = await fetch('/api/agents/verification/identity-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentUrl: identityDraftUrl }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Something went wrong')
+      setIdentityDraftUrl(null)
+      loadData()
+    } catch (err: any) {
+      setIdentityError(err.message ?? 'Something went wrong')
+    } finally {
+      setIdentitySubmitting(false)
+    }
+  }
+
   if (loading) return <div className="p-10 text-merqt-text-muted">Loading...</div>
   if (!seller) return (
     <div className="p-10">
@@ -147,6 +172,47 @@ export default function DashboardPage() {
             />
             My business is licensed/registered <span className="text-merqt-text-muted">(shows a Licensed trust badge on your profile)</span>
           </label>
+        </Card>
+
+        <Card className="p-3.5 mb-5">
+          <div className="text-sm font-semibold mb-1">Identity verification</div>
+          {seller.verified ? (
+            <p className="text-sm text-merqt-success-dark">✓ Verified</p>
+          ) : seller.identity_status === 'pending' ? (
+            <p className="text-sm text-merqt-text-muted">Under review - a real person checks this, usually within a couple of days.</p>
+          ) : (
+            <>
+              <p className="text-xs text-merqt-text-muted mb-2.5">
+                Upload a government ID or business registration (CAC) document. A person reviews it before your profile shows as verified.
+              </p>
+              {seller.identity_status === 'rejected' && seller.identity_rejection_reason && (
+                <p className="text-xs text-merqt-ochre-dark mb-2.5">{seller.identity_rejection_reason}</p>
+              )}
+              <CldUploadWidget
+                uploadPreset="merqt_products"
+                onSuccess={(result: any) => setIdentityDraftUrl(result.info.secure_url)}
+              >
+                {({ open }) => (
+                  <button
+                    type="button"
+                    onClick={() => open()}
+                    className="w-full py-2 rounded border border-dashed border-merqt-indigo text-merqt-indigo text-sm font-semibold mb-2"
+                  >
+                    {identityDraftUrl ? '✓ Document selected' : '+ Upload document'}
+                  </button>
+                )}
+              </CldUploadWidget>
+              {identityError && <p className="text-xs text-merqt-ochre-dark mb-2">{identityError}</p>}
+              <Button
+                variant="primary"
+                className="w-full"
+                disabled={!identityDraftUrl || identitySubmitting}
+                onClick={submitIdentityDocument}
+              >
+                {identitySubmitting ? 'Submitting...' : 'Submit for verification'}
+              </Button>
+            </>
+          )}
         </Card>
 
         {statusMessage && (
