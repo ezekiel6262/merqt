@@ -5,16 +5,10 @@ import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { formatNaira } from '@/lib/format'
+import { DISPUTE_CATEGORY_LABEL } from '@/lib/disputes'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { StatusPill, TypeTag } from '@/components/ui/StatusPill'
-
-const DISPUTE_CATEGORY_LABEL: Record<string, string> = {
-  not_received: 'Item not received',
-  not_as_described: 'Not as described',
-  quality_issue: 'Quality issue',
-  other: 'Other issue',
-}
 
 // Product flow: pending > confirmed > dispatched > delivered
 const PRODUCT_FLOW: Record<string, string> = {

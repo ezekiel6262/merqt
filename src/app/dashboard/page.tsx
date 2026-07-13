@@ -95,6 +95,7 @@ export default function DashboardPage() {
       negotiable,
       images,
       moderation_status: moderationStatus,
+      moderation_reason: moderationReason || null,
     })
 
     if (!insertError) {
@@ -339,21 +340,31 @@ export default function DashboardPage() {
               </p>
             )}
             {products.map((p) => (
-              <div key={p.id} className="flex items-center justify-between p-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold">{p.name}</p>
-                    {p.moderation_status === 'flagged' && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-merqt-ochre-soft text-merqt-ochre-dark font-semibold">
-                        Under review
-                      </span>
-                    )}
+              <div key={p.id} className="p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold">{p.name}</p>
+                      {p.moderation_status === 'flagged' && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-merqt-ochre-soft text-merqt-ochre-dark font-semibold">
+                          Under review
+                        </span>
+                      )}
+                      {p.moderation_status === 'rejected' && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-merqt-ochre-dark text-merqt-surface font-semibold">
+                          Rejected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-merqt-text-muted capitalize">
+                      {p.type}{p.negotiable ? ' · offers allowed' : ''}
+                    </p>
                   </div>
-                  <p className="text-xs text-merqt-text-muted capitalize">
-                    {p.type}{p.negotiable ? ' · offers allowed' : ''}
-                  </p>
+                  <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(p.price)}</p>
                 </div>
-                <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(p.price)}</p>
+                {(p.moderation_status === 'flagged' || p.moderation_status === 'rejected') && p.moderation_reason && (
+                  <p className="text-xs text-merqt-ochre-dark mt-1">{p.moderation_reason}</p>
+                )}
               </div>
             ))}
           </div>
