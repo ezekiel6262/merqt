@@ -176,7 +176,7 @@ export default function Home() {
                     <span className="text-sm font-semibold">{authorName}</span>
                     {isSeller && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">
-                        Seller
+                        Business
                       </span>
                     )}
                     <span className="text-xs text-merqt-text-muted">{timeAgoShort(post.created_at)}</span>

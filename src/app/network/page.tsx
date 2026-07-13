@@ -208,7 +208,7 @@ export default function NetworkPage() {
                         <span className="text-sm font-semibold">{authorName}</span>
                         {isSeller && (
                           <span className="text-[10.5px] font-bold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">
-                            Seller
+                            Business
                           </span>
                         )}
                       </div>
