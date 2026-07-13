@@ -26,6 +26,7 @@ export default async function ProfilePage({
     .from('reviews')
     .select('*, buyer:users(name), product:products(name)')
     .eq('seller_id', seller.id)
+    .eq('hidden', false)
     .order('created_at', { ascending: false })
 
   const badgeSignals = await computeExtendedBadgeSignals(seller.id)

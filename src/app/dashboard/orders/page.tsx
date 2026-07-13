@@ -9,6 +9,13 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { StatusPill, TypeTag } from '@/components/ui/StatusPill'
 
+const DISPUTE_CATEGORY_LABEL: Record<string, string> = {
+  not_received: 'Item not received',
+  not_as_described: 'Not as described',
+  quality_issue: 'Quality issue',
+  other: 'Other issue',
+}
+
 // Product flow: pending > confirmed > dispatched > delivered
 const PRODUCT_FLOW: Record<string, string> = {
   pending: 'confirmed',
@@ -214,8 +221,20 @@ export default function SellerOrdersPage() {
 
                 {o.dispute_status === 'reported' && (
                   <div className="bg-merqt-ochre-soft border border-merqt-ochre rounded p-2 mb-2">
-                    <p className="text-xs text-merqt-ochre-dark font-semibold mb-0.5">Reported by buyer</p>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <p className="text-xs text-merqt-ochre-dark font-semibold">Reported by buyer</p>
+                      {o.dispute_category && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-merqt-ochre-dark text-merqt-surface">
+                          {DISPUTE_CATEGORY_LABEL[o.dispute_category] ?? o.dispute_category}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-merqt-ochre-dark">{o.dispute_reason}</p>
+                    {o.dispute_suggested_action && (
+                      <p className="text-xs text-merqt-ochre-dark mt-1">
+                        <span className="font-semibold">Suggested next step:</span> {o.dispute_suggested_action}
+                      </p>
+                    )}
                   </div>
                 )}
 

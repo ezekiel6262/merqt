@@ -63,7 +63,13 @@ Respond with:
 
   const { error: updateError } = await admin
     .from('orders')
-    .update({ dispute_status: 'reported', dispute_reason: reason, disputed_at: new Date().toISOString() })
+    .update({
+      dispute_status: 'reported',
+      dispute_reason: reason,
+      disputed_at: new Date().toISOString(),
+      dispute_category: category,
+      dispute_suggested_action: suggestedAction || null,
+    })
     .eq('id', orderId)
 
   if (updateError) return NextResponse.json({ error: 'Could not save report' }, { status: 500 })
