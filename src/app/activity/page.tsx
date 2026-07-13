@@ -104,6 +104,17 @@ function ActivityInner() {
   useEffect(() => { loadActivity(); loadConversations() }, [user])
 
   useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel('activity-messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+        loadConversations()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [supabase, user])
+
+  useEffect(() => {
     if (selectedConvoId && ownUserId && conversations.length > 0) {
       const convo = conversations.find((c) => c.id === selectedConvoId)
       const unreadIds = (convo?.messages ?? [])

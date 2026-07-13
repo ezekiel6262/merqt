@@ -18,36 +18,46 @@ export function Navbar() {
   })
   const supabase = useSupabaseClient()
 
-  useEffect(() => {
-    async function checkStatus() {
-      if (!user) return
-      const { data: userRow } = await supabase
-        .from('users').select('id, name, avatar_url, slug').eq('clerk_id', user.id).single()
-      if (!userRow) return
+  async function checkStatus() {
+    if (!user) return
+    const { data: userRow } = await supabase
+      .from('users').select('id, name, avatar_url, slug').eq('clerk_id', user.id).single()
+    if (!userRow) return
 
-      setProfile({ name: userRow.name ?? '', avatarUrl: userRow.avatar_url ?? '', slug: userRow.slug ?? null })
+    setProfile({ name: userRow.name ?? '', avatarUrl: userRow.avatar_url ?? '', slug: userRow.slug ?? null })
 
-      const { data: sellerRow } = await supabase
-        .from('sellers').select('id').eq('user_id', userRow.id).single()
-      setIsSeller(!!sellerRow)
+    const { data: sellerRow } = await supabase
+      .from('sellers').select('id').eq('user_id', userRow.id).single()
+    setIsSeller(!!sellerRow)
 
-      const orFilter = sellerRow
-        ? `buyer_id.eq.${userRow.id},seller_id.eq.${sellerRow.id}`
-        : `buyer_id.eq.${userRow.id}`
-      const { data: convoRows } = await supabase.from('conversations').select('id').or(orFilter)
-      const convoIds = (convoRows ?? []).map((c) => c.id)
-      if (convoIds.length > 0) {
-        const { count } = await supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .in('conversation_id', convoIds)
-          .is('read_at', null)
-          .neq('sender_user_id', userRow.id)
-        setUnreadCount(count ?? 0)
-      }
+    const orFilter = sellerRow
+      ? `buyer_id.eq.${userRow.id},seller_id.eq.${sellerRow.id}`
+      : `buyer_id.eq.${userRow.id}`
+    const { data: convoRows } = await supabase.from('conversations').select('id').or(orFilter)
+    const convoIds = (convoRows ?? []).map((c) => c.id)
+    if (convoIds.length > 0) {
+      const { count } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .in('conversation_id', convoIds)
+        .is('read_at', null)
+        .neq('sender_user_id', userRow.id)
+      setUnreadCount(count ?? 0)
     }
-    checkStatus()
-  }, [user])
+  }
+
+  useEffect(() => { checkStatus() }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel('navbar-messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+        checkStatus()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [supabase, user])
 
   const linkClass = (path: string) =>
     'text-[13.5px] px-3.5 py-1.5 border-b-2 -mb-px transition-colors flex items-center gap-1.5 ' +
