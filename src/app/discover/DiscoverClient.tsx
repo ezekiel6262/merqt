@@ -14,6 +14,7 @@ import { URGENCY_OPTIONS, urgencyClasses, urgencyLabel, respondToRequest } from 
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { Avatar } from '@/components/ui/Avatar'
 
 const CHIP_CATEGORIES = ['All', ...CATEGORIES]
 type Sort = 'recommended' | 'rating' | 'orders'
@@ -50,7 +51,7 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
 
   async function reloadRequests() {
     const { data } = await supabase
-      .from('buyer_requests').select('*, buyer:users(name)').eq('status', 'open').order('created_at', { ascending: false })
+      .from('buyer_requests').select('*, buyer:users(name, avatar_url)').eq('status', 'open').order('created_at', { ascending: false })
     setRequests(data ?? [])
   }
 
@@ -246,10 +247,13 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
               {filteredRequests.map((r) => (
                 <Card key={r.id} className="p-4">
                   <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <div className="text-sm font-semibold">{r.buyer?.name || 'Buyer'}</div>
-                      <div className="text-xs text-merqt-text-muted">
-                        {r.location && `${r.location} · `}{new Date(r.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
+                    <div className="flex items-center gap-2.5">
+                      <Avatar src={r.buyer?.avatar_url} name={r.buyer?.name || 'Buyer'} size={32} />
+                      <div>
+                        <div className="text-sm font-semibold">{r.buyer?.name || 'Buyer'}</div>
+                        <div className="text-xs text-merqt-text-muted">
+                          {r.location && `${r.location} · `}{new Date(r.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
+                        </div>
                       </div>
                     </div>
                     <span className={`text-[11px] font-semibold px-2.5 py-1 rounded whitespace-nowrap ${urgencyClasses(r.urgency)}`}>

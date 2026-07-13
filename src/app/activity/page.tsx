@@ -6,10 +6,11 @@ import { useUser } from '@clerk/nextjs'
 import { useSearchParams } from 'next/navigation'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
-import { formatNaira, getInitials } from '@/lib/format'
+import { formatNaira } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { StatusPill, TypeTag } from '@/components/ui/StatusPill'
+import { Avatar } from '@/components/ui/Avatar'
 
 const CANCEL_REASONS = ['Changed my mind', 'Found another seller', 'No longer needed', 'Other']
 
@@ -87,7 +88,7 @@ function ActivityInner() {
 
     const { data: convoRows } = await supabase
       .from('conversations')
-      .select('*, buyer:users(name), seller:sellers(business_name, slug), messages(id, text, sender_user_id, read_at, created_at)')
+      .select('*, buyer:users(name, avatar_url), seller:sellers(business_name, slug), messages(id, text, sender_user_id, read_at, created_at)')
       .or(orFilter)
       .order('created_at', { ascending: false })
 
@@ -376,6 +377,7 @@ function ActivityInner() {
               {conversations.map((c) => {
                 const iAmBuyer = c.buyer && ownUserId && c.buyer_id === ownUserId
                 const otherName = iAmBuyer ? c.seller?.business_name : c.buyer?.name || 'Buyer'
+                const otherAvatar = iAmBuyer ? null : c.buyer?.avatar_url
                 const msgs = c.messages ?? []
                 const last = msgs[msgs.length - 1]
                 const unread = msgs.filter((m: any) => m.sender_user_id !== ownUserId && !m.read_at).length
@@ -385,9 +387,7 @@ function ActivityInner() {
                     onClick={() => setSelectedConvoId(c.id)}
                     className={`flex items-center gap-2.5 px-4 py-3 cursor-pointer border-b border-merqt-border ${selectedConvoId === c.id ? 'bg-merqt-indigo-soft' : 'hover:bg-merqt-bg'}`}
                   >
-                    <div className="w-9 h-9 rounded-full bg-merqt-indigo text-merqt-surface flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                      {getInitials(otherName || '?')}
-                    </div>
+                    <Avatar src={otherAvatar} name={otherName || '?'} size={36} />
                     <div className="min-w-0 flex-1">
                       <div className="text-[13.5px] font-semibold truncate">{otherName}</div>
                       <div className="text-xs text-merqt-text-muted truncate">{last?.text ?? 'No messages yet'}</div>
@@ -407,8 +407,16 @@ function ActivityInner() {
                 </div>
               ) : (
                 <>
-                  <div className="p-4 border-b border-merqt-border font-semibold text-sm">
-                    {selectedConvo.buyer_id === ownUserId ? selectedConvo.seller?.business_name : selectedConvo.buyer?.name || 'Buyer'}
+                  <div className="p-4 border-b border-merqt-border flex items-center gap-2.5">
+                    <Avatar
+                      src={selectedConvo.buyer_id === ownUserId ? null : selectedConvo.buyer?.avatar_url}
+                      name={selectedConvo.buyer_id === ownUserId ? selectedConvo.seller?.business_name : selectedConvo.buyer?.name || 'Buyer'}
+                      size={30}
+                      shape={selectedConvo.buyer_id === ownUserId ? 'square' : 'circle'}
+                    />
+                    <span className="font-semibold text-sm">
+                      {selectedConvo.buyer_id === ownUserId ? selectedConvo.seller?.business_name : selectedConvo.buyer?.name || 'Buyer'}
+                    </span>
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2.5 max-h-96">
                     {(selectedConvo.messages ?? []).map((m: any) => {

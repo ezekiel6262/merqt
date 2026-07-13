@@ -11,6 +11,7 @@ import { getInitials } from '@/lib/format'
 import { URGENCY_OPTIONS, urgencyClasses, urgencyLabel, respondToRequest } from '@/lib/requests'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { Avatar } from '@/components/ui/Avatar'
 
 function timeAgoShort(dateStr: string) {
   const hours = Math.floor((Date.now() - new Date(dateStr).getTime()) / (60 * 60 * 1000))
@@ -38,8 +39,8 @@ export default function Home() {
 
   async function loadHome() {
     const [{ data: requestRows }, { data: postRows }, { data: sellerRows }] = await Promise.all([
-      supabase.from('buyer_requests').select('*, buyer:users(name)').eq('status', 'open').order('created_at', { ascending: false }).limit(4),
-      supabase.from('posts').select('*, author:users(name), seller:sellers(business_name, slug)').order('created_at', { ascending: false }).limit(5),
+      supabase.from('buyer_requests').select('*, buyer:users(name, avatar_url)').eq('status', 'open').order('created_at', { ascending: false }).limit(4),
+      supabase.from('posts').select('*, author:users(name, avatar_url), seller:sellers(business_name, slug)').order('created_at', { ascending: false }).limit(5),
       supabase.from('sellers').select('*').order('rating', { ascending: false }).limit(4),
     ])
     setRequests(requestRows ?? [])
@@ -104,7 +105,10 @@ export default function Home() {
             {requests.map((r) => (
               <Card key={r.id} className="p-3">
                 <div className="flex justify-between items-start mb-1.5">
-                  <div className="text-[12.5px] font-semibold">{r.buyer?.name || 'Buyer'}</div>
+                  <div className="flex items-center gap-2">
+                    <Avatar src={r.buyer?.avatar_url} name={r.buyer?.name || 'Buyer'} size={26} />
+                    <div className="text-[12.5px] font-semibold">{r.buyer?.name || 'Buyer'}</div>
+                  </div>
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded whitespace-nowrap ${urgencyClasses(r.urgency)}`}>
                     {urgencyLabel(r.urgency)}
                   </span>
@@ -173,6 +177,12 @@ export default function Home() {
               return (
                 <Card key={post.id} className="p-4">
                   <div className="flex items-center gap-2 mb-2">
+                    <Avatar
+                      src={isSeller ? null : post.author?.avatar_url}
+                      name={authorName}
+                      size={28}
+                      shape={isSeller ? 'square' : 'circle'}
+                    />
                     <span className="text-sm font-semibold">{authorName}</span>
                     {isSeller && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">

@@ -10,6 +10,7 @@ import { ensureUserRow } from '@/lib/ensureUser'
 import { getInitials } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { Avatar } from '@/components/ui/Avatar'
 
 function timeAgoShort(dateStr: string) {
   const ms = Date.now() - new Date(dateStr).getTime()
@@ -46,7 +47,7 @@ export default function NetworkPage() {
   async function loadFeed() {
     const { data: postRows } = await supabase
       .from('posts')
-      .select('*, author:users(name), seller:sellers(business_name, slug)')
+      .select('*, author:users(name, avatar_url), seller:sellers(business_name, slug)')
       .order('created_at', { ascending: false })
       .limit(30)
     setPosts(postRows ?? [])
@@ -203,16 +204,24 @@ export default function NetworkPage() {
               return (
                 <Card key={post.id} className="p-4">
                   <div className="flex justify-between items-start mb-2.5">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">{authorName}</span>
-                        {isSeller && (
-                          <span className="text-[10.5px] font-bold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">
-                            Business
-                          </span>
-                        )}
+                    <div className="flex items-center gap-2.5">
+                      <Avatar
+                        src={isSeller ? null : post.author?.avatar_url}
+                        name={authorName}
+                        size={36}
+                        shape={isSeller ? 'square' : 'circle'}
+                      />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold">{authorName}</span>
+                          {isSeller && (
+                            <span className="text-[10.5px] font-bold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">
+                              Business
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-merqt-text-muted">{timeAgoShort(post.created_at)}</div>
                       </div>
-                      <div className="text-xs text-merqt-text-muted">{timeAgoShort(post.created_at)}</div>
                     </div>
                     {isSeller && post.seller?.id && (
                       <button
