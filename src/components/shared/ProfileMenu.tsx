@@ -57,6 +57,13 @@ export function ProfileMenu({
           >
             Edit profile
           </Link>
+          <Link
+            href="/settings/account"
+            onClick={() => setOpen(false)}
+            className="block px-3.5 py-2.5 text-[13.5px] text-merqt-text hover:bg-merqt-bg border-t border-merqt-border"
+          >
+            Account &amp; security
+          </Link>
           <button
             type="button"
             onClick={() => signOut({ redirectUrl: '/discover' })}

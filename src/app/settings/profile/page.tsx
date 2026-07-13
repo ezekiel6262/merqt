@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useUser } from '@clerk/nextjs'
 import { CldUploadWidget } from 'next-cloudinary'
 import { useSupabaseClient } from '@/lib/supabase/client'
@@ -157,6 +158,10 @@ export default function ProfileSettingsPage() {
             </Button>
           </div>
         </Card>
+
+        <Link href="/settings/account" className="block mt-4 text-[13px] font-semibold text-merqt-indigo">
+          Manage email, password &amp; account security →
+        </Link>
       </div>
     </div>
   )
