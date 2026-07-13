@@ -69,9 +69,6 @@ export default function SellerOrdersPage() {
 
   const [confirmingCancelId, setConfirmingCancelId] = useState<string | null>(null)
   const [cancelReasonDraft, setCancelReasonDraft] = useState<Record<string, string>>({})
-  // Cancellation reason is shown for this session only - the schema has no
-  // column to persist it against an order yet.
-  const [cancelledReasons, setCancelledReasons] = useState<Record<string, string>>({})
 
   async function loadOrders() {
     if (!user) return
@@ -149,8 +146,10 @@ export default function SellerOrdersPage() {
   async function confirmCancel(order: any) {
     const reason = cancelReasonDraft[order.id]
     if (!reason) return
-    await supabase.from('orders').update({ status: 'cancelled', status_changed_at: new Date().toISOString() }).eq('id', order.id)
-    setCancelledReasons((prev) => ({ ...prev, [order.id]: reason }))
+    await supabase
+      .from('orders')
+      .update({ status: 'cancelled', status_changed_at: new Date().toISOString(), cancel_reason: reason })
+      .eq('id', order.id)
     setConfirmingCancelId(null)
     loadOrders()
   }
@@ -267,8 +266,8 @@ export default function SellerOrdersPage() {
                   </div>
                 )}
 
-                {isCancelled && cancelledReasons[o.id] && (
-                  <p className="text-[11.5px] text-merqt-text-muted mb-2">Cancellation reason: {cancelledReasons[o.id]}</p>
+                {isCancelled && o.cancel_reason && (
+                  <p className="text-[11.5px] text-merqt-text-muted mb-2">Cancellation reason: {o.cancel_reason}</p>
                 )}
 
                 {confirmingCancelId === o.id ? (

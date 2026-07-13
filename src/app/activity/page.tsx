@@ -47,9 +47,6 @@ function ActivityInner() {
 
   const [confirmingCancelId, setConfirmingCancelId] = useState<string | null>(null)
   const [cancelReasonDraft, setCancelReasonDraft] = useState<Record<string, string>>({})
-  // Cancellation reason is shown for this session only - the schema has no
-  // column to persist it against an order yet.
-  const [cancelledReasons, setCancelledReasons] = useState<Record<string, string>>({})
 
   // Messages
   const [ownUserId, setOwnUserId] = useState<string | null>(null)
@@ -164,8 +161,10 @@ function ActivityInner() {
   async function confirmCancel(order: any) {
     const reason = cancelReasonDraft[order.id]
     if (!reason) return
-    await supabase.from('orders').update({ status: 'cancelled', status_changed_at: new Date().toISOString() }).eq('id', order.id)
-    setCancelledReasons((prev) => ({ ...prev, [order.id]: reason }))
+    await supabase
+      .from('orders')
+      .update({ status: 'cancelled', status_changed_at: new Date().toISOString(), cancel_reason: reason })
+      .eq('id', order.id)
     setConfirmingCancelId(null)
     loadActivity()
   }
@@ -250,8 +249,8 @@ function ActivityInner() {
                       <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(o.total_amount)}</p>
                     </div>
 
-                    {isCancelled && cancelledReasons[o.id] && (
-                      <p className="text-[11.5px] text-merqt-text-muted mt-1">Cancellation reason: {cancelledReasons[o.id]}</p>
+                    {isCancelled && o.cancel_reason && (
+                      <p className="text-[11.5px] text-merqt-text-muted mt-1">Cancellation reason: {o.cancel_reason}</p>
                     )}
 
                     {isDelivered && !hasReview && reviewing !== o.id && (
