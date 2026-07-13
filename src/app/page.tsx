@@ -174,9 +174,11 @@ export default function Home() {
                 <Card key={post.id} className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm font-semibold">{authorName}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isSeller ? 'bg-merqt-indigo-soft text-merqt-indigo-dark' : 'bg-merqt-ochre-soft text-merqt-ochre-dark'}`}>
-                      {isSeller ? 'Seller' : 'Buyer'}
-                    </span>
+                    {isSeller && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">
+                        Seller
+                      </span>
+                    )}
                     <span className="text-xs text-merqt-text-muted">{timeAgoShort(post.created_at)}</span>
                   </div>
                   <p className="text-sm leading-relaxed mb-2">{post.text}</p>
