@@ -1,11 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
-  background-color: #F3F2EE;
-  color: rgba(0, 0, 0, 0.9);
-  font-family: 'Inter', system-ui, sans-serif;
+  background-color: oklch(0.97 0.012 70);
+  color: oklch(0.22 0.015 70);
+  font-family: var(--font-plex-sans), 'IBM Plex Sans', system-ui, sans-serif;
   font-size: 14px;
 }

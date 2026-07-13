@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { CATEGORIES, CITIES } from '@/lib/constants'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
 
 function makeSlug(name: string) {
   return name.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')
@@ -144,24 +146,24 @@ export default function OnboardingPage() {
   const canSubmit = businessName.length >= 3 && category !== '' && city !== ''
 
   return (
-    <div className="min-h-screen bg-li-page flex items-start justify-center pt-10 px-4">
+    <div className="min-h-screen bg-merqt-bg flex items-start justify-center pt-12 px-4 pb-12">
       <div className="w-full max-w-lg">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-semibold text-li-text-1 mb-1">Set up your Merqt profile</h1>
-          <p className="text-li-text-2 text-sm">Your trade profile on Merqt. Takes 2 minutes.</p>
+        <div className="text-center mb-7">
+          <h1 className="font-serif text-2xl font-semibold text-merqt-text mb-1.5">Set up your Merqt profile</h1>
+          <p className="text-merqt-text-muted text-sm">Your trade profile on Merqt. Takes 2 minutes.</p>
         </div>
 
-        <div className="bg-white border border-li-border rounded-card p-5 space-y-4">
+        <Card className="p-5 space-y-4">
           <div>
             <label className="block text-sm font-semibold mb-1">Business name</label>
             <input
-              className="w-full border border-li-border rounded px-3 py-2 text-sm focus:outline-none focus:border-li-blue"
+              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo"
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}
               placeholder="e.g. Zara Fabrics Lagos"
             />
             {businessName.length >= 3 && (
-              <p className="text-xs text-li-text-3 mt-1">
+              <p className="text-xs text-merqt-text-muted mt-1">
                 Your link: merqt.com/@{makeSlug(businessName)}
               </p>
             )}
@@ -170,7 +172,7 @@ export default function OnboardingPage() {
           <div>
             <label className="block text-sm font-semibold mb-1">Category</label>
             <select
-              className="w-full border border-li-border rounded px-3 py-2 text-sm focus:outline-none focus:border-li-blue"
+              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
@@ -184,7 +186,7 @@ export default function OnboardingPage() {
           <div>
             <label className="block text-sm font-semibold mb-1">City</label>
             <select
-              className="w-full border border-li-border rounded px-3 py-2 text-sm focus:outline-none focus:border-li-blue"
+              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo"
               value={city}
               onChange={(e) => setCity(e.target.value)}
             >
@@ -195,7 +197,7 @@ export default function OnboardingPage() {
             </select>
           </div>
 
-          <div className="border-t border-li-border pt-4">
+          <div className="border-t border-merqt-border pt-4">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -216,28 +218,28 @@ export default function OnboardingPage() {
           </div>
 
           {!noPhysicalOffice && (
-            <div className="border-t border-li-border pt-4">
+            <div className="border-t border-merqt-border pt-4">
               <label className="block text-sm font-semibold mb-1">
-                Find your business on Google Maps <span className="font-normal text-li-text-3">(optional)</span>
+                Find your business on Google Maps <span className="font-normal text-merqt-text-muted">(optional)</span>
               </label>
-              <p className="text-xs text-li-text-3 mb-2">
+              <p className="text-xs text-merqt-text-muted mb-2">
                 Can&apos;t find your business? No problem - just fill in the address below yourself.
               </p>
               <button
                 type="button"
                 onClick={searchPlaces}
                 disabled={businessName.length < 3 || city === '' || searching}
-                className={`w-full py-2 rounded-pill border-2 font-semibold text-sm ${
+                className={`w-full py-2 rounded border-2 font-semibold text-sm ${
                   businessName.length >= 3 && city !== '' && !searching
-                    ? 'border-li-blue text-li-blue'
-                    : 'border-li-border text-li-text-3 cursor-not-allowed'
+                    ? 'border-merqt-indigo text-merqt-indigo'
+                    : 'border-merqt-border text-merqt-text-muted cursor-not-allowed'
                 }`}
               >
                 {searching ? 'Searching...' : 'Search Google Maps'}
               </button>
 
               {searched && placeResults.length === 0 && !placeMeta && (
-                <p className="text-xs text-li-text-3 mt-2">No matching listing found - no problem, just continue below.</p>
+                <p className="text-xs text-merqt-text-muted mt-2">No matching listing found - no problem, just continue below.</p>
               )}
 
               {placeResults.length > 0 && !selectedPlace && (
@@ -247,54 +249,44 @@ export default function OnboardingPage() {
                       key={p.placeId}
                       type="button"
                       onClick={() => setSelectedPlace(p)}
-                      className="w-full text-left border border-li-border rounded p-2 text-sm hover:border-li-blue"
+                      className="w-full text-left border border-merqt-border rounded p-2 text-sm hover:border-merqt-indigo"
                     >
                       <p className="font-semibold">{p.name}</p>
-                      <p className="text-xs text-li-text-2">{p.address}</p>
+                      <p className="text-xs text-merqt-text-muted">{p.address}</p>
                     </button>
                   ))}
                 </div>
               )}
 
               {selectedPlace && (
-                <div className="mt-2 border border-li-border rounded p-3 space-y-2">
+                <div className="mt-2 border border-merqt-border rounded p-3 space-y-2">
                   <p className="text-sm font-semibold">Is this your business?</p>
                   <p className="text-sm">{selectedPlace.name}</p>
-                  <p className="text-xs text-li-text-2">{selectedPlace.address}</p>
+                  <p className="text-xs text-merqt-text-muted">{selectedPlace.address}</p>
                   <div className="flex gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPlace(null)}
-                      disabled={verifying}
-                      className="flex-1 py-1.5 rounded-pill border border-li-border text-li-text-2 font-semibold text-xs"
-                    >
+                    <Button variant="ghost" size="sm" className="flex-1" disabled={verifying} onClick={() => setSelectedPlace(null)}>
                       Choose a different one
-                    </button>
-                    <button
-                      type="button"
-                      onClick={confirmSelectedPlace}
-                      disabled={verifying}
-                      className="flex-1 py-1.5 rounded-pill bg-li-blue text-white font-semibold text-xs"
-                    >
+                    </Button>
+                    <Button variant="primary" size="sm" className="flex-1" disabled={verifying} onClick={confirmSelectedPlace}>
                       {verifying ? 'Checking...' : 'Yes, this is correct'}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
 
               {placeMeta && verification && (
-                <div className="mt-2 border border-li-blue rounded p-3 space-y-1">
-                  <p className={`text-xs ${verification.categoryMatch ? 'text-li-text-2' : 'text-li-red'}`}>
+                <div className="mt-2 border border-merqt-indigo rounded p-3 space-y-1">
+                  <p className={`text-xs ${verification.categoryMatch ? 'text-merqt-text-muted' : 'text-merqt-ochre-dark'}`}>
                     {verification.reasoning}
                   </p>
                   {placeMeta.hours && (
-                    <p className="text-xs text-li-text-2">{placeMeta.hours.join(' · ')}</p>
+                    <p className="text-xs text-merqt-text-muted">{placeMeta.hours.join(' · ')}</p>
                   )}
-                  <p className="text-xs text-li-text-3">Address and phone below have been filled in - you can still edit them.</p>
+                  <p className="text-xs text-merqt-text-muted">Address and phone below have been filled in - you can still edit them.</p>
                   <button
                     type="button"
                     onClick={() => { setPlaceMeta(null); setVerification(null); setSearched(false) }}
-                    className="text-xs text-li-blue font-semibold"
+                    className="text-xs text-merqt-indigo font-semibold"
                   >
                     Search again
                   </button>
@@ -306,10 +298,10 @@ export default function OnboardingPage() {
           {!noPhysicalOffice && (
             <div>
               <label className="block text-sm font-semibold mb-1">
-                Address <span className="font-normal text-li-text-3">(optional)</span>
+                Address <span className="font-normal text-merqt-text-muted">(optional)</span>
               </label>
               <input
-                className="w-full border border-li-border rounded px-3 py-2 text-sm focus:outline-none focus:border-li-blue"
+                className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="e.g. 12 Adeola Odeku St, Victoria Island"
@@ -319,10 +311,10 @@ export default function OnboardingPage() {
 
           <div>
             <label className="block text-sm font-semibold mb-1">
-              Phone <span className="font-normal text-li-text-3">(optional)</span>
+              Phone <span className="font-normal text-merqt-text-muted">(optional)</span>
             </label>
             <input
-              className="w-full border border-li-border rounded px-3 py-2 text-sm focus:outline-none focus:border-li-blue"
+              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+234 800 000 0000"
@@ -331,10 +323,10 @@ export default function OnboardingPage() {
 
           <div>
             <label className="block text-sm font-semibold mb-1">
-              Bio <span className="font-normal text-li-text-3">(optional)</span>
+              Bio <span className="font-normal text-merqt-text-muted">(optional)</span>
             </label>
             <textarea
-              className="w-full border border-li-border rounded px-3 py-2 text-sm resize-none focus:outline-none focus:border-li-blue"
+              className="w-full border border-merqt-border rounded px-3 py-2 text-sm resize-none outline-none focus:border-merqt-indigo"
               rows={3}
               value={bio}
               onChange={(e) => setBio(e.target.value)}
@@ -344,28 +336,22 @@ export default function OnboardingPage() {
 
           <div>
             <label className="block text-sm font-semibold mb-1">
-              WhatsApp <span className="font-normal text-li-text-3">(optional)</span>
+              WhatsApp <span className="font-normal text-merqt-text-muted">(optional)</span>
             </label>
             <input
-              className="w-full border border-li-border rounded px-3 py-2 text-sm focus:outline-none focus:border-li-blue"
+              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo"
               value={whatsapp}
               onChange={(e) => setWhatsapp(e.target.value)}
               placeholder="+234 800 000 0000"
             />
           </div>
 
-          {error && <p className="text-sm text-li-red">{error}</p>}
+          {error && <p className="text-sm text-merqt-ochre-dark">{error}</p>}
 
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit || loading}
-            className={`w-full py-2.5 rounded-pill font-semibold text-sm text-white ${
-              canSubmit && !loading ? 'bg-li-blue hover:bg-li-blue-dark' : 'bg-gray-300 cursor-not-allowed'
-            }`}
-          >
+          <Button variant="primary" size="lg" className="w-full" disabled={!canSubmit || loading} onClick={handleSubmit}>
             {loading ? 'Creating your profile...' : 'Launch my Merqt profile'}
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     </div>
   )

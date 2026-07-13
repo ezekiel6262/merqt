@@ -3,9 +3,15 @@
 import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
+import { formatNaira } from '@/lib/format'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { StatusPill, TypeTag } from '@/components/ui/StatusPill'
 
-function formatNGN(amount: number) {
-  return 'N' + amount.toLocaleString('en-NG')
+const CANCEL_REASONS = ['Changed my mind', 'Found another seller', 'No longer needed', 'Other']
+
+function isTerminal(status: string) {
+  return status === 'delivered' || status === 'completed' || status === 'cancelled'
 }
 
 export default function ActivityPage() {
@@ -21,9 +27,14 @@ export default function ActivityPage() {
   const [reportReason, setReportReason] = useState('')
   const [reportSaving, setReportSaving] = useState(false)
 
+  const [confirmingCancelId, setConfirmingCancelId] = useState<string | null>(null)
+  const [cancelReasonDraft, setCancelReasonDraft] = useState<Record<string, string>>({})
+  // Cancellation reason is shown for this session only - the schema has no
+  // column to persist it against an order yet.
+  const [cancelledReasons, setCancelledReasons] = useState<Record<string, string>>({})
+
   async function loadActivity() {
     if (!user) return
-   
 
     const { data: userRow } = await supabase
       .from('users').select('id').eq('clerk_id', user.id).single()
@@ -44,14 +55,13 @@ export default function ActivityPage() {
   async function submitReview(order: any) {
     if (!user) return
     setSaving(true)
-    
 
     const { data: userRow } = await supabase
       .from('users').select('id').eq('clerk_id', user.id).single()
 
     if (!userRow) { setSaving(false); return }
 
-    const { data: newReview, error: reviewInsertError } = await supabase.from('reviews').insert({
+    const { data: newReview } = await supabase.from('reviews').insert({
       order_id: order.id,
       buyer_id: userRow.id,
       seller_id: order.seller_id,
@@ -59,8 +69,6 @@ export default function ActivityPage() {
       rating,
       body: body || null,
     }).select('id').single()
-
-    console.log('DEBUG review insert result:', { newReview, reviewInsertError })
 
     if (newReview) {
       // Fire-and-forget: never blocks or delays the buyer's review submission.
@@ -95,133 +103,164 @@ export default function ActivityPage() {
     }
   }
 
-  if (loading) return <div className="p-10 text-li-text-2">Loading...</div>
+  async function confirmCancel(order: any) {
+    const reason = cancelReasonDraft[order.id]
+    if (!reason) return
+    await supabase.from('orders').update({ status: 'cancelled', status_changed_at: new Date().toISOString() }).eq('id', order.id)
+    setCancelledReasons((prev) => ({ ...prev, [order.id]: reason }))
+    setConfirmingCancelId(null)
+    loadActivity()
+  }
+
+  if (loading) return <div className="p-10 text-merqt-text-muted">Loading...</div>
 
   return (
-    <div className="min-h-screen bg-li-page py-4 px-4">
-      <div className="max-w-2xl mx-auto space-y-2">
+    <div className="min-h-screen bg-merqt-bg py-8 px-5">
+      <div className="max-w-2xl mx-auto">
 
-        <div className="bg-white border border-li-border rounded-card p-4">
-          <h1 className="text-lg font-semibold">Activity</h1>
-          <p className="text-sm text-li-text-2">Everything you have ordered and requested</p>
-        </div>
+        <h1 className="font-serif text-2xl font-semibold text-merqt-text mb-1">Activity</h1>
+        <p className="text-sm text-merqt-text-muted mb-6">Everything you have ordered and requested</p>
 
         {orders.length === 0 && (
-          <div className="bg-white border border-li-border rounded-card p-8 text-center">
-            <p className="text-sm text-li-text-2">No activity yet. Your orders and requests will show up here.</p>
-          </div>
+          <Card className="p-8 text-center">
+            <p className="text-sm text-merqt-text-muted">No activity yet. Your orders and requests will show up here.</p>
+          </Card>
         )}
 
-        {orders.map((o) => {
-          const hasReview = !!o.review
-          const isDelivered = o.status === 'delivered' || o.status === 'completed'
-          return (
-            <div key={o.id} className="bg-white border border-li-border rounded-card p-4">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={'text-xs px-2 py-0.5 rounded-xl font-semibold ' +
-                      (o.is_service ? 'bg-li-blue-bg text-li-blue' : 'bg-li-green-bg text-li-green')}>
-                      {o.is_service ? 'Service request' : 'Product order'}
-                    </span>
-                  </div>
-                  <p className="font-semibold text-sm">{o.product?.name}</p>
-                  <p className="text-xs text-li-text-2">{o.seller?.business_name}</p>
-                  <span className="text-xs px-2 py-0.5 rounded-xl bg-li-page text-li-text-2 capitalize inline-block mt-1">
-                    {o.status}
-                  </span>
-                </div>
-                <p className="text-sm font-semibold text-li-blue">{formatNGN(o.total_amount)}</p>
-              </div>
-
-              {isDelivered && !hasReview && reviewing !== o.id && (
-                <button onClick={() => setReviewing(o.id)}
-                  className="w-full py-2 rounded-pill border-2 border-li-blue text-li-blue font-semibold text-sm">
-                  Leave a review
-                </button>
-              )}
-
-              {isDelivered && hasReview && (
-                <div className="border-t border-li-border pt-3 mt-2">
-                  <p className="text-xs font-semibold text-li-text-2 mb-1">Your review</p>
-                  <div className="flex gap-0.5 mb-1">
-                    {[1,2,3,4,5].map((star) => (
-                      <span key={star} className={'text-lg ' +
-                        (star <= o.review.rating ? 'text-yellow-400' : 'text-li-border')}>
-                        &#9733;
-                      </span>
-                    ))}
-                  </div>
-                  {o.review.body && (
-                    <p className="text-sm text-li-text-1">{o.review.body}</p>
-                  )}
-                </div>
-              )}
-
-              {reviewing === o.id && (
-                <div className="border-t border-li-border pt-3 mt-2 space-y-3">
+        <div className="flex flex-col gap-3.5">
+          {orders.map((o) => {
+            const hasReview = !!o.review
+            const isDelivered = o.status === 'delivered' || o.status === 'completed'
+            const isCancelled = o.status === 'cancelled'
+            const cancellable = !isTerminal(o.status)
+            return (
+              <Card key={o.id} className="p-4">
+                <div className="flex justify-between items-start mb-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold mb-1">Your rating</label>
-                    <div className="flex gap-1">
-                      {[1,2,3,4,5].map((star) => (
-                        <button key={star} onClick={() => setRating(star)}
-                          className={'text-2xl ' + (star <= rating ? 'text-yellow-400' : 'text-li-border')}>
-                          &#9733;
-                        </button>
-                      ))}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <TypeTag label={o.is_service ? 'Service request' : 'Product order'} kind={o.is_service ? 'service' : 'product'} />
+                    </div>
+                    <p className="font-semibold text-sm">{o.product?.name}</p>
+                    <p className="text-xs text-merqt-text-muted mb-1.5">{o.seller?.business_name}</p>
+                    <StatusPill label={o.status} cancelled={isCancelled} />
+                  </div>
+                  <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(o.total_amount)}</p>
+                </div>
+
+                {isCancelled && cancelledReasons[o.id] && (
+                  <p className="text-[11.5px] text-merqt-text-muted mt-1">Cancellation reason: {cancelledReasons[o.id]}</p>
+                )}
+
+                {isDelivered && !hasReview && reviewing !== o.id && (
+                  <Button variant="ghost" className="w-full mt-2" onClick={() => setReviewing(o.id)}>
+                    Leave a review
+                  </Button>
+                )}
+
+                {isDelivered && hasReview && (
+                  <div className="border-t border-merqt-border pt-3 mt-2">
+                    <p className="text-xs font-semibold text-merqt-text-muted mb-1.5">Your review</p>
+                    <div className="font-mono text-merqt-ochre-dark mb-1">
+                      {'★'.repeat(o.review.rating)}{'☆'.repeat(5 - o.review.rating)}
+                    </div>
+                    {o.review.body && (
+                      <p className="text-sm text-merqt-text">{o.review.body}</p>
+                    )}
+                  </div>
+                )}
+
+                {reviewing === o.id && (
+                  <div className="border-t border-merqt-border pt-3 mt-2 space-y-3">
+                    <div>
+                      <label className="block text-sm font-semibold mb-1">Your rating</label>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button key={star} onClick={() => setRating(star)}
+                            className={'text-2xl ' + (star <= rating ? 'text-merqt-ochre' : 'text-merqt-border')}>
+                            ★
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-1">Comment (optional)</label>
+                      <textarea className="w-full border border-merqt-border rounded px-3 py-2 text-sm resize-none outline-none focus:border-merqt-indigo"
+                        rows={2} value={body} onChange={(e) => setBody(e.target.value)}
+                        placeholder="How was your experience?" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" className="flex-1" onClick={() => setReviewing(null)}>Cancel</Button>
+                      <Button variant="primary" className="flex-1" disabled={saving} onClick={() => submitReview(o)}>
+                        {saving ? 'Submitting...' : 'Submit review'}
+                      </Button>
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-1">Comment (optional)</label>
-                    <textarea className="w-full border border-li-border rounded px-3 py-2 text-sm resize-none"
-                      rows={2} value={body} onChange={(e) => setBody(e.target.value)}
-                      placeholder="How was your experience?" />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setReviewing(null)}
-                      className="flex-1 py-2 rounded-pill border border-li-border text-li-text-2 font-semibold text-sm">
-                      Cancel
-                    </button>
-                    <button onClick={() => submitReview(o)} disabled={saving}
-                      className="flex-1 py-2 rounded-pill bg-li-blue text-white font-semibold text-sm">
-                      {saving ? 'Submitting...' : 'Submit review'}
-                    </button>
-                  </div>
-                </div>
-              )}
+                )}
 
-              {o.dispute_status === 'reported' ? (
-                <p className="text-center text-sm text-li-red font-semibold border-t border-li-border pt-3 mt-2">
-                  Reported - the seller has been notified
-                </p>
-              ) : reporting !== o.id ? (
-                <button onClick={() => setReporting(o.id)}
-                  className="w-full py-2 mt-2 rounded-pill border border-li-border text-li-text-2 font-semibold text-sm">
-                  Report a problem
-                </button>
-              ) : (
-                <div className="border-t border-li-border pt-3 mt-2 space-y-3">
-                  <div>
-                    <label className="block text-sm font-semibold mb-1">What went wrong?</label>
-                    <textarea className="w-full border border-li-border rounded px-3 py-2 text-sm resize-none"
-                      rows={2} value={reportReason} onChange={(e) => setReportReason(e.target.value)}
-                      placeholder="Tell us what happened..." />
+                {confirmingCancelId === o.id ? (
+                  <div className="border-t border-merqt-border pt-3 mt-2">
+                    <div className="text-[12.5px] text-merqt-text-muted mb-2">
+                      Why are you cancelling this {o.is_service ? 'request' : 'order'}?
+                    </div>
+                    <select
+                      value={cancelReasonDraft[o.id] ?? ''}
+                      onChange={(e) => setCancelReasonDraft((prev) => ({ ...prev, [o.id]: e.target.value }))}
+                      className="w-full border border-merqt-border rounded px-2.5 py-2 text-sm outline-none mb-2.5"
+                    >
+                      <option value="">Select a reason</option>
+                      {CANCEL_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                    <div className="flex items-center gap-2.5 justify-end">
+                      <button onClick={() => setConfirmingCancelId(null)}
+                        className="border border-merqt-border rounded px-3 py-1.5 text-xs font-semibold text-merqt-text">
+                        Keep it
+                      </button>
+                      <button
+                        onClick={() => confirmCancel(o)}
+                        disabled={!cancelReasonDraft[o.id]}
+                        className="bg-merqt-ochre-dark text-merqt-surface rounded px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+                      >
+                        Yes, cancel
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setReporting(null); setReportReason('') }}
-                      className="flex-1 py-2 rounded-pill border border-li-border text-li-text-2 font-semibold text-sm">
-                      Cancel
-                    </button>
-                    <button onClick={() => submitDispute(o)} disabled={reportSaving || reportReason.trim().length < 3}
-                      className="flex-1 py-2 rounded-pill bg-li-red text-white font-semibold text-sm">
-                      {reportSaving ? 'Submitting...' : 'Submit report'}
-                    </button>
+                ) : cancellable && (
+                  <button onClick={() => setConfirmingCancelId(o.id)}
+                    className="mt-2 border border-merqt-border text-merqt-text-muted rounded px-3 py-1.5 text-xs font-semibold">
+                    Cancel
+                  </button>
+                )}
+
+                {o.dispute_status === 'reported' ? (
+                  <p className="text-center text-sm text-merqt-ochre-dark font-semibold border-t border-merqt-border pt-3 mt-3">
+                    Reported - the seller has been notified
+                  </p>
+                ) : reporting !== o.id ? (
+                  <Button variant="ghost" className="w-full mt-2" onClick={() => setReporting(o.id)}>
+                    Report a problem
+                  </Button>
+                ) : (
+                  <div className="border-t border-merqt-border pt-3 mt-2 space-y-3">
+                    <div>
+                      <label className="block text-sm font-semibold mb-1">What went wrong?</label>
+                      <textarea className="w-full border border-merqt-border rounded px-3 py-2 text-sm resize-none outline-none focus:border-merqt-indigo"
+                        rows={2} value={reportReason} onChange={(e) => setReportReason(e.target.value)}
+                        placeholder="Tell us what happened..." />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" className="flex-1" onClick={() => { setReporting(null); setReportReason('') }}>
+                        Cancel
+                      </Button>
+                      <Button variant="danger" className="flex-1" disabled={reportSaving || reportReason.trim().length < 3} onClick={() => submitDispute(o)}>
+                        {reportSaving ? 'Submitting...' : 'Submit report'}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
+                )}
+              </Card>
+            )
+          })}
+        </div>
 
       </div>
     </div>

@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-
-function formatNGN(amount: number) {
-  return 'N' + amount.toLocaleString('en-NG')
-}
+import { formatNaira } from '@/lib/format'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { MetricCard } from '@/components/ui/Stat'
 
 export default function DashboardPage() {
   const { user } = useUser()
@@ -106,64 +106,61 @@ export default function DashboardPage() {
     setSaving(false)
   }
 
-  if (loading) return <div className="p-10 text-li-text-2">Loading...</div>
+  if (loading) return <div className="p-10 text-merqt-text-muted">Loading...</div>
   if (!seller) return (
     <div className="p-10">
-      <p className="text-li-text-2">No profile found. <Link href="/onboarding" className="text-li-blue">Set one up</Link>.</p>
+      <p className="text-merqt-text-muted">No profile found. <Link href="/onboarding" className="text-merqt-indigo font-semibold">Set one up</Link>.</p>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-li-page py-4 px-4">
-      <div className="max-w-2xl mx-auto space-y-2">
+    <div className="min-h-screen bg-merqt-bg py-8 px-5">
+      <div className="max-w-2xl mx-auto">
 
-        {/* Header */}
-        <div className="bg-white border border-li-border rounded-card p-4 flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-lg font-semibold">Welcome back</h1>
-            <p className="text-sm text-li-text-2">{seller.business_name}</p>
-          </div>
-          <Link href="/dashboard/orders"
-                className="px-4 py-1.5 rounded-pill bg-li-blue text-white font-semibold text-sm ml-2">
-            Orders and requests
-          </Link>
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+          <h1 className="font-serif text-2xl font-semibold text-merqt-text">Your dashboard</h1>
+          <Link href="/dashboard/orders"><Button variant="primary">Orders and requests</Button></Link>
         </div>
 
-        {/* Profile link banner */}
-        <div className="bg-li-blue-bg border border-li-blue rounded-card p-3">
-          <p className="text-sm text-li-blue">
-            Your public link: <span className="font-semibold">merqt.com/@{seller.slug}</span>
-          </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-5">
+          <MetricCard value={seller.order_count} label="Orders" />
+          <MetricCard value={Number(seller.rating).toFixed(1)} label="Rating" />
+          <MetricCard value={products.length} label="Listings" />
+          <MetricCard value={`${Math.round(seller.completion_rate)}%`} label="Completion" />
+        </div>
+
+        <div className="flex gap-4 mb-6">
+          <Link href={`/@${seller.slug}`} className="text-[13.5px] font-semibold text-merqt-indigo">View public profile →</Link>
+          <Link href={`/@${seller.slug}/marketplace`} className="text-[13.5px] font-semibold text-merqt-indigo">View marketplace page →</Link>
         </div>
 
         {statusMessage && (
-          <div className="bg-li-blue-bg border border-li-blue rounded-card p-3">
-            <p className="text-sm text-li-blue">{statusMessage}</p>
-          </div>
+          <Card className="bg-merqt-indigo-soft border-merqt-indigo p-3.5 mb-5">
+            <p className="text-sm text-merqt-indigo-dark">{statusMessage}</p>
+          </Card>
         )}
 
         {/* Listings section */}
-        <div className="bg-white border border-li-border rounded-card">
-          <div className="flex items-center justify-between p-4 border-b border-li-border">
-            <h2 className="font-semibold">Your listings ({products.length})</h2>
-            <button onClick={() => setShowForm(!showForm)}
-                    className="px-4 py-1.5 rounded-pill bg-li-blue text-white font-semibold text-sm">
+        <Card>
+          <div className="flex items-center justify-between p-4 border-b border-merqt-border">
+            <h2 className="font-serif text-lg font-semibold">Your listings ({products.length})</h2>
+            <Button variant="primary" onClick={() => setShowForm(!showForm)}>
               {showForm ? 'Cancel' : '+ Add listing'}
-            </button>
+            </Button>
           </div>
 
           {/* Add form */}
           {showForm && (
-            <div className="p-4 border-b border-li-border bg-li-page space-y-3">
+            <div className="p-4 border-b border-merqt-border bg-merqt-bg space-y-3">
               <div>
                 <label className="block text-sm font-semibold mb-1">What are you listing?</label>
                 <div className="flex gap-2">
                   <button onClick={() => setType('physical')}
-                    className={`flex-1 py-2 rounded text-sm font-semibold border ${type === 'physical' ? 'bg-li-blue text-white border-li-blue' : 'bg-white border-li-border text-li-text-2'}`}>
+                    className={`flex-1 py-2 rounded text-sm font-semibold border ${type === 'physical' ? 'bg-merqt-indigo text-merqt-surface border-merqt-indigo' : 'bg-merqt-surface border-merqt-border text-merqt-text-muted'}`}>
                     A product
                   </button>
                   <button onClick={() => setType('service')}
-                    className={`flex-1 py-2 rounded text-sm font-semibold border ${type === 'service' ? 'bg-li-blue text-white border-li-blue' : 'bg-white border-li-border text-li-text-2'}`}>
+                    className={`flex-1 py-2 rounded text-sm font-semibold border ${type === 'service' ? 'bg-merqt-indigo text-merqt-surface border-merqt-indigo' : 'bg-merqt-surface border-merqt-border text-merqt-text-muted'}`}>
                     A service
                   </button>
                 </div>
@@ -172,24 +169,24 @@ export default function DashboardPage() {
                 <label className="block text-sm font-semibold mb-1">
                   {type === 'physical' ? 'Product name' : 'Service name'}
                 </label>
-                <input className="w-full border border-li-border rounded px-3 py-2 text-sm"
+                <input className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo"
                   value={name} onChange={(e) => setName(e.target.value)}
                   placeholder={type === 'physical' ? 'e.g. 6-yard Ankara print' : 'e.g. Fabric styling consultation'} />
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1">Price (Naira)</label>
-                <input className="w-full border border-li-border rounded px-3 py-2 text-sm"
+                <input className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo"
                   value={price} onChange={(e) => setPrice(e.target.value)}
                   placeholder="4500" type="number" />
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1">Description (optional)</label>
-                <textarea className="w-full border border-li-border rounded px-3 py-2 text-sm resize-none"
+                <textarea className="w-full border border-merqt-border rounded px-3 py-2 text-sm resize-none outline-none focus:border-merqt-indigo"
                   rows={2} value={description} onChange={(e) => setDescription(e.target.value)}
                   placeholder="Any details buyers should know..." />
               </div>
 
-<div>
+              <div>
                 <label className="block text-sm font-semibold mb-1">Photos</label>
                 <CldUploadWidget
                   uploadPreset="merqt_products"
@@ -201,7 +198,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => open()}
-                      className="w-full py-2 rounded border border-dashed border-li-blue text-li-blue text-sm font-semibold"
+                      className="w-full py-2 rounded border border-dashed border-merqt-indigo text-merqt-indigo text-sm font-semibold"
                     >
                       + Upload photo
                     </button>
@@ -210,7 +207,7 @@ export default function DashboardPage() {
                 {images.length > 0 && (
                   <div className="flex gap-2 mt-2 flex-wrap">
                     {images.map((url, i) => (
-                      <img key={i} src={url} alt="" className="w-14 h-14 object-cover rounded border border-li-border" />
+                      <img key={i} src={url} alt="" className="w-14 h-14 object-cover rounded border border-merqt-border" />
                     ))}
                   </div>
                 )}
@@ -220,18 +217,17 @@ export default function DashboardPage() {
                 <input type="checkbox" checked={negotiable} onChange={(e) => setNegotiable(e.target.checked)} />
                 Allow buyers to make offers
               </label>
-              {error && <p className="text-sm text-li-red">{error}</p>}
-              <button onClick={addProduct} disabled={!name || !price || saving}
-                className={`w-full py-2 rounded-pill font-semibold text-sm text-white ${name && price && !saving ? 'bg-li-blue' : 'bg-gray-300'}`}>
+              {error && <p className="text-sm text-merqt-ochre-dark">{error}</p>}
+              <Button variant="primary" className="w-full" size="lg" disabled={!name || !price || saving} onClick={addProduct}>
                 {saving ? 'Adding...' : 'Add to my profile'}
-              </button>
+              </Button>
             </div>
           )}
 
           {/* Listings list */}
-          <div className="divide-y divide-li-border">
+          <div className="divide-y divide-merqt-border">
             {products.length === 0 && !showForm && (
-              <p className="p-6 text-center text-sm text-li-text-2">
+              <p className="p-6 text-center text-sm text-merqt-text-muted">
                 Nothing listed yet. Click Add listing to add your first product or service.
               </p>
             )}
@@ -241,20 +237,20 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold">{p.name}</p>
                     {p.moderation_status === 'flagged' && (
-                      <span className="text-xs px-2 py-0.5 rounded-xl bg-yellow-100 text-yellow-700 font-semibold">
+                      <span className="text-xs px-2 py-0.5 rounded bg-merqt-ochre-soft text-merqt-ochre-dark font-semibold">
                         Under review
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-li-text-2 capitalize">
+                  <p className="text-xs text-merqt-text-muted capitalize">
                     {p.type}{p.negotiable ? ' · offers allowed' : ''}
                   </p>
                 </div>
-                <p className="text-sm font-semibold text-li-blue">{formatNGN(p.price)}</p>
+                <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(p.price)}</p>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
 
       </div>
     </div>

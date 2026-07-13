@@ -27,18 +27,22 @@ export function Navbar() {
   }, [user])
 
   const linkClass = (path: string) =>
-    'text-sm px-3 py-1 ' +
-    (pathname === path ? 'text-li-blue font-semibold' : 'text-li-text-2 hover:text-li-text-1')
+    'text-[13.5px] px-3.5 py-1.5 border-b-2 -mb-px transition-colors ' +
+    (pathname === path
+      ? 'text-merqt-indigo font-bold border-merqt-indigo'
+      : 'text-merqt-text-muted font-medium border-transparent hover:text-merqt-text')
 
   return (
-    <header className="bg-white border-b border-li-border sticky top-0 z-50">
-      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+    <header className="bg-merqt-surface border-b border-merqt-border sticky top-0 z-50">
+      <div className="max-w-5xl mx-auto px-5 h-14 flex items-center gap-3">
 
-        <Link href="/discover" className="text-li-blue font-semibold text-xl">
+        <Link href="/discover" className="font-serif text-xl font-semibold text-merqt-indigo flex-shrink-0">
           Merqt
         </Link>
 
-        <nav className="flex items-center gap-2">
+        <div className="flex-1" />
+
+        <nav className="flex items-center gap-0.5">
           <Link href="/discover" className={linkClass('/discover')}>Discover</Link>
 
           {isSignedIn && (
@@ -49,20 +53,29 @@ export function Navbar() {
             <Link href="/dashboard" className={linkClass('/dashboard')}>Dashboard</Link>
           )}
 
-          {isSignedIn ? (
-            <div className="ml-2">
-              <UserButton afterSignOutUrl="/discover" />
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 ml-2">
-              <Link href="/login" className="text-sm text-li-text-2 px-3 py-1">Sign in</Link>
-              <Link href="/register"
-                className="text-sm bg-li-blue text-white font-semibold px-4 py-1.5 rounded-pill">
-                Join now
-              </Link>
-            </div>
+          {isSignedIn && !isSeller && (
+            <Link
+              href="/onboarding"
+              className="ml-2 bg-merqt-indigo text-merqt-surface rounded px-3 py-1.5 text-xs font-semibold whitespace-nowrap"
+            >
+              Become a seller
+            </Link>
           )}
         </nav>
+
+        {isSignedIn ? (
+          <div className="ml-1 flex-shrink-0">
+            <UserButton afterSignOutUrl="/discover" />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 ml-1 flex-shrink-0">
+            <Link href="/login" className="text-[13.5px] text-merqt-text-muted px-3 py-1.5">Sign in</Link>
+            <Link href="/register"
+              className="text-[13.5px] bg-merqt-indigo text-merqt-surface font-semibold px-4 py-1.5 rounded">
+              Join now
+            </Link>
+          </div>
+        )}
 
       </div>
     </header>

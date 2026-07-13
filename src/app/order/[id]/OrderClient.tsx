@@ -1,26 +1,28 @@
 'use client'
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
+import { formatNaira } from '@/lib/format'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { StepDots } from '@/components/ui/StepDots'
 
-function formatNGN(amount: number) {
-  return 'N' + amount.toLocaleString('en-NG')
-}
+const STEP_LABELS = ['Delivery', 'Payment', 'Summary', 'Done']
 
 export function OrderClient({ product, seller }: { product: any; seller: any }) {
   const { user, isSignedIn } = useUser()
   const supabase = useSupabaseClient()
 
+  const [step, setStep] = useState(0)
   const [quantity, setQuantity] = useState(1)
   const [address, setAddress] = useState('')
   const [city, setCity] = useState('')
   const [note, setNote] = useState('')
-  const [payment, setPayment] = useState('direct')
+  const [payment, setPayment] = useState<'platform' | 'direct'>('direct')
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState('')
-  const [done, setDone] = useState(false)
 
   const isService = product.type === 'service'
   const total = product.price * quantity
@@ -31,8 +33,6 @@ export function OrderClient({ product, seller }: { product: any; seller: any }) 
     setError('')
 
     try {
-      
-
       const { data: existingUser } = await supabase
         .from('users').select('id').eq('clerk_id', user.id).single()
 
@@ -67,7 +67,7 @@ export function OrderClient({ product, seller }: { product: any; seller: any }) 
       })
       if (oErr) throw oErr
 
-      setDone(true)
+      setStep(3)
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong')
     } finally {
@@ -77,109 +77,120 @@ export function OrderClient({ product, seller }: { product: any; seller: any }) 
 
   if (!isSignedIn) {
     return (
-      <div className="min-h-screen bg-li-page flex items-center justify-center px-4">
-        <div className="bg-white border border-li-border rounded-card p-6 max-w-sm text-center">
-          <p className="text-sm text-li-text-2 mb-4">Please sign in to place an order.</p>
-          <a href="/login" className="px-4 py-2 rounded-pill bg-li-blue text-white font-semibold text-sm inline-block">
-            Sign in
-          </a>
-        </div>
-      </div>
-    )
-  }
-
-  if (done) {
-    return (
-      <div className="min-h-screen bg-li-page flex items-center justify-center px-4">
-        <div className="bg-white border border-li-border rounded-card p-6 max-w-sm text-center">
-          <div className="w-14 h-14 rounded-full bg-li-green-bg flex items-center justify-center mx-auto mb-3">
-            <span className="text-li-green text-2xl">done</span>
-          </div>
-          <h1 className="text-lg font-semibold mb-1">Order placed</h1>
-          <p className="text-sm text-li-text-2 mb-4">
-            {seller.business_name} has received your order and will be in touch.
-          </p>
-          <a href={'/@' + seller.slug} className="px-4 py-2 rounded-pill border-2 border-li-blue text-li-blue font-semibold text-sm inline-block">
-            Back to profile
-          </a>
-        </div>
+      <div className="min-h-screen bg-merqt-bg flex items-center justify-center px-4">
+        <Card className="p-6 max-w-sm text-center">
+          <p className="text-sm text-merqt-text-muted mb-4">Please sign in to place an order.</p>
+          <a href="/login"><Button variant="primary">Sign in</Button></a>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-li-page py-4 px-4">
-      <div className="max-w-lg mx-auto space-y-2">
+    <div className="min-h-screen bg-merqt-bg py-8 px-5">
+      <div className="max-w-lg mx-auto">
+        <StepDots steps={STEP_LABELS} current={step} />
 
-        <div className="bg-white border border-li-border rounded-card p-4">
-          <div className="flex gap-3 items-center">
-            <div className="w-16 h-16 rounded bg-li-page flex-shrink-0 overflow-hidden">
-              {product.images && product.images[0] && (
-                <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-              )}
+        {step === 0 && (
+          <Card className="p-5">
+            <div className="flex gap-3 items-center mb-5">
+              <div className="w-16 h-16 rounded bg-merqt-bg flex-shrink-0 overflow-hidden">
+                {product.images?.[0] && (
+                  <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-sm">{product.name}</p>
+                <p className="text-sm text-merqt-text-muted">{seller.business_name}</p>
+                <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(product.price)}</p>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="font-semibold text-sm">{product.name}</p>
-              <p className="text-sm text-li-text-2">{seller.business_name}</p>
-              <p className="text-sm font-semibold text-li-blue">{formatNGN(product.price)}</p>
-            </div>
-          </div>
-        </div>
 
-        {!isService && (
-          <div className="bg-white border border-li-border rounded-card p-4">
-            <label className="block text-sm font-semibold mb-2">Quantity</label>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="w-8 h-8 border border-li-border rounded text-lg">-</button>
-              <span className="font-semibold w-8 text-center">{quantity}</span>
-              <button onClick={() => setQuantity(quantity + 1)}
-                className="w-8 h-8 border border-li-border rounded text-lg">+</button>
-            </div>
-          </div>
+            {!isService && (
+              <>
+                <label className="block text-xs text-merqt-text-muted mb-1.5">Quantity</label>
+                <div className="flex items-center gap-3 mb-5">
+                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    className="w-8 h-8 border border-merqt-border rounded text-base bg-merqt-bg">−</button>
+                  <span className="font-mono text-sm w-6 text-center">{quantity}</span>
+                  <button onClick={() => setQuantity(quantity + 1)}
+                    className="w-8 h-8 border border-merqt-border rounded text-base bg-merqt-bg">+</button>
+                </div>
+              </>
+            )}
+
+            <label className="block text-xs text-merqt-text-muted mb-1.5">Delivery address</label>
+            <input className="w-full border border-merqt-border rounded px-3 py-2.5 text-sm mb-2.5 outline-none focus:border-merqt-indigo"
+              value={address} onChange={(e) => setAddress(e.target.value)}
+              placeholder="Street address" />
+            <input className="w-full border border-merqt-border rounded px-3 py-2.5 text-sm mb-2.5 outline-none focus:border-merqt-indigo"
+              value={city} onChange={(e) => setCity(e.target.value)}
+              placeholder="City" />
+            <textarea className="w-full border border-merqt-border rounded px-3 py-2.5 text-sm resize-none outline-none focus:border-merqt-indigo mb-5"
+              rows={2} value={note} onChange={(e) => setNote(e.target.value)}
+              placeholder="Note to seller (optional)" />
+
+            <Button variant="primary" size="lg" className="w-full" onClick={() => setStep(1)}>Continue</Button>
+          </Card>
         )}
 
-        <div className="bg-white border border-li-border rounded-card p-4 space-y-3">
-          <label className="block text-sm font-semibold">
-            {isService ? 'Where should the service happen?' : 'Delivery address'}
-          </label>
-          <input className="w-full border border-li-border rounded px-3 py-2 text-sm"
-            value={address} onChange={(e) => setAddress(e.target.value)}
-            placeholder="Street address" />
-          <input className="w-full border border-li-border rounded px-3 py-2 text-sm"
-            value={city} onChange={(e) => setCity(e.target.value)}
-            placeholder="City" />
-          <textarea className="w-full border border-li-border rounded px-3 py-2 text-sm resize-none"
-            rows={2} value={note} onChange={(e) => setNote(e.target.value)}
-            placeholder="Note to seller (optional)" />
-        </div>
+        {step === 1 && (
+          <Card className="p-5">
+            <div className="text-[15px] font-semibold mb-4">Payment method</div>
+            <button onClick={() => setPayment('platform')}
+              className={`w-full text-left p-3.5 rounded-card border-[1.5px] mb-2.5 ${payment === 'platform' ? 'border-merqt-indigo bg-merqt-indigo-soft' : 'border-merqt-border bg-merqt-surface'}`}>
+              <p className="text-sm font-semibold mb-0.5">Escrow through Merqt</p>
+              <p className="text-xs text-merqt-text-muted">Merqt holds payment until you confirm delivery.</p>
+            </button>
+            <button onClick={() => setPayment('direct')}
+              className={`w-full text-left p-3.5 rounded-card border-[1.5px] ${payment === 'direct' ? 'border-merqt-indigo bg-merqt-indigo-soft' : 'border-merqt-border bg-merqt-surface'}`}>
+              <p className="text-sm font-semibold mb-0.5">Direct to seller</p>
+              <p className="text-xs text-merqt-text-muted">Pay the seller directly, outside Merqt.</p>
+            </button>
+            <div className="flex gap-2.5 mt-5">
+              <Button variant="ghost" size="lg" onClick={() => setStep(0)}>Back</Button>
+              <Button variant="primary" size="lg" className="flex-1" onClick={() => setStep(2)}>Continue</Button>
+            </div>
+          </Card>
+        )}
 
-        <div className="bg-white border border-li-border rounded-card p-4 space-y-2">
-          <label className="block text-sm font-semibold mb-1">How would you like to pay?</label>
-          <button onClick={() => setPayment('platform')}
-            className={'w-full text-left p-3 rounded border ' + (payment === 'platform' ? 'border-li-blue bg-li-blue-bg' : 'border-li-border')}>
-            <p className="text-sm font-semibold">Pay through Merqt</p>
-            <p className="text-xs text-li-text-2">Held securely, released when you confirm delivery.</p>
-          </button>
-          <button onClick={() => setPayment('direct')}
-            className={'w-full text-left p-3 rounded border ' + (payment === 'direct' ? 'border-li-blue bg-li-blue-bg' : 'border-li-border')}>
-            <p className="text-sm font-semibold">Pay seller directly</p>
-            <p className="text-xs text-li-text-2">Arrange payment with the seller.</p>
-          </button>
-        </div>
+        {step === 2 && (
+          <Card className="p-5">
+            <div className="text-[15px] font-semibold mb-4">Order summary</div>
+            <div className="flex flex-col gap-2.5 text-[13.5px] mb-5">
+              <div className="flex justify-between"><span className="text-merqt-text-muted">Item</span><span>{product.name} × {quantity}</span></div>
+              <div className="flex justify-between"><span className="text-merqt-text-muted">Delivery to</span><span className="max-w-[260px] text-right">{address || 'Not provided'}{city ? `, ${city}` : ''}</span></div>
+              <div className="flex justify-between"><span className="text-merqt-text-muted">Payment</span><span>{payment === 'platform' ? 'Escrow through Merqt' : 'Direct to seller'}</span></div>
+              <div className="flex justify-between items-center">
+                <span className="text-merqt-text-muted">Escrow status</span>
+                <span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded ${payment === 'platform' ? 'bg-merqt-success-soft text-merqt-success-dark' : 'bg-merqt-bg border border-merqt-border text-merqt-text-muted'}`}>
+                  {payment === 'platform' ? 'Funds will be held in escrow' : 'Not escrowed'}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-merqt-border pt-2.5 font-semibold">
+                <span>Total</span><span className="font-mono">{formatNaira(total)}</span>
+              </div>
+            </div>
+            {error && <p className="text-sm text-merqt-ochre-dark mb-2.5">{error}</p>}
+            <div className="flex gap-2.5">
+              <Button variant="ghost" size="lg" onClick={() => setStep(1)}>Back</Button>
+              <Button variant="primary" size="lg" className="flex-1" disabled={placing} onClick={placeOrder}>
+                {placing ? 'Placing order...' : 'Place order'}
+              </Button>
+            </div>
+          </Card>
+        )}
 
-        <div className="bg-white border border-li-border rounded-card p-4">
-          <div className="flex justify-between mb-3">
-            <span className="text-sm text-li-text-2">Total</span>
-            <span className="text-lg font-semibold">{formatNGN(total)}</span>
-          </div>
-          {error && <p className="text-sm text-li-red mb-2">{error}</p>}
-          <button onClick={placeOrder} disabled={placing}
-            className={'w-full py-2.5 rounded-pill font-semibold text-sm text-white ' + (placing ? 'bg-gray-300' : 'bg-li-blue')}>
-            {placing ? 'Placing order...' : 'Place order'}
-          </button>
-        </div>
-
+        {step === 3 && (
+          <Card className="p-7 text-center">
+            <div className="w-12 h-12 rounded-full bg-merqt-success-soft text-merqt-success-dark flex items-center justify-center text-xl mx-auto mb-4">✓</div>
+            <div className="text-[17px] font-semibold mb-1.5">Order placed</div>
+            <div className="text-[13.5px] text-merqt-text-muted mb-5">
+              {seller.business_name} has received your order and will be in touch.
+            </div>
+            <a href="/activity"><Button variant="primary" size="lg">Track in Activity</Button></a>
+          </Card>
+        )}
       </div>
     </div>
   )

@@ -1,24 +1,29 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
+import { formatNaira } from '@/lib/format'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { StepDots } from '@/components/ui/StepDots'
 
-function formatNGN(amount: number) {
-  return 'N' + amount.toLocaleString('en-NG')
-}
+const STEP_LABELS = ['Details', 'Review', 'Sent']
 
 export function RequestClient({ service, seller }: { service: any; seller: any }) {
   const { user, isSignedIn } = useUser()
   const supabase = useSupabaseClient()
 
+  const [step, setStep] = useState(0)
   const [description, setDescription] = useState('')
   const [preferredDate, setPreferredDate] = useState('')
   const [location, setLocation] = useState('')
   const [budget, setBudget] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
-  const [done, setDone] = useState(false)
+
+  const canSend = description.trim().length >= 10
 
   async function sendRequest() {
     if (!user) return
@@ -26,8 +31,6 @@ export function RequestClient({ service, seller }: { service: any; seller: any }
     setError('')
 
     try {
-      
-
       const { data: existingUser } = await supabase
         .from('users').select('id').eq('clerk_id', user.id).single()
 
@@ -64,7 +67,7 @@ export function RequestClient({ service, seller }: { service: any; seller: any }
       })
       if (rErr) throw rErr
 
-      setDone(true)
+      setStep(2)
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong')
     } finally {
@@ -74,108 +77,93 @@ export function RequestClient({ service, seller }: { service: any; seller: any }
 
   if (!isSignedIn) {
     return (
-      <div className="min-h-screen bg-li-page flex items-center justify-center px-4">
-        <div className="bg-white border border-li-border rounded-card p-6 max-w-sm text-center">
-          <p className="text-sm text-li-text-2 mb-4">Please sign in to request a service.</p>
-          <a href="/login" className="px-4 py-2 rounded-pill bg-li-blue text-white font-semibold text-sm inline-block">
-            Sign in
-          </a>
-        </div>
+      <div className="min-h-screen bg-merqt-bg flex items-center justify-center px-4">
+        <Card className="p-6 max-w-sm text-center">
+          <p className="text-sm text-merqt-text-muted mb-4">Please sign in to request a service.</p>
+          <a href="/login"><Button variant="primary">Sign in</Button></a>
+        </Card>
       </div>
     )
   }
-
-  if (done) {
-    return (
-      <div className="min-h-screen bg-li-page flex items-center justify-center px-4">
-        <div className="bg-white border border-li-border rounded-card p-6 max-w-sm text-center">
-          <div className="w-14 h-14 rounded-full bg-li-green-bg flex items-center justify-center mx-auto mb-3">
-            <span className="text-li-green text-2xl">done</span>
-          </div>
-          <h1 className="text-lg font-semibold mb-1">Request sent</h1>
-          <p className="text-sm text-li-text-2 mb-4">
-            {seller.business_name} has received your request and will respond to arrange the details with you.
-          </p>
-          <a href={'/@' + seller.slug} className="px-4 py-2 rounded-pill border-2 border-li-blue text-li-blue font-semibold text-sm inline-block">
-            Back to profile
-          </a>
-        </div>
-      </div>
-    )
-  }
-
-  const canSend = description.trim().length >= 10
 
   return (
-    <div className="min-h-screen bg-li-page py-4 px-4">
-      <div className="max-w-lg mx-auto space-y-2">
+    <div className="min-h-screen bg-merqt-bg py-8 px-5">
+      <div className="max-w-lg mx-auto">
+        <StepDots steps={STEP_LABELS} current={step} />
 
-        <div className="bg-white border border-li-border rounded-card p-4">
-          <div className="flex gap-3 items-center">
-            <div className="w-16 h-16 rounded bg-li-page flex-shrink-0 overflow-hidden">
-              {service.images && service.images[0] && (
-                <img src={service.images[0]} alt={service.name} className="w-full h-full object-cover" />
-              )}
+        {step === 0 && (
+          <Card className="p-5">
+            <div className="flex gap-3 items-center mb-5">
+              <div className="w-16 h-16 rounded bg-merqt-bg flex-shrink-0 overflow-hidden">
+                {service.images?.[0] && (
+                  <img src={service.images[0]} alt={service.name} className="w-full h-full object-cover" />
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="text-[13px] font-semibold mb-0.5">{service.name}</p>
+                <p className="text-[12.5px] text-merqt-text-muted">
+                  Start a conversation with the seller — this is a request, not a purchase.
+                </p>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="text-xs text-li-blue font-semibold uppercase">Service request</p>
-              <p className="font-semibold text-sm">{service.name}</p>
-              <p className="text-sm text-li-text-2">{seller.business_name}</p>
-              {service.price > 0 && (
-                <p className="text-sm font-semibold text-li-blue">from {formatNGN(service.price)}</p>
-              )}
-            </div>
-          </div>
-        </div>
 
-        <div className="bg-white border border-li-border rounded-card p-4 space-y-4">
-          <div>
-            <label className="block text-sm font-semibold mb-1">What do you need?</label>
-            <textarea className="w-full border border-li-border rounded px-3 py-2 text-sm resize-none"
+            <label className="block text-xs text-merqt-text-muted mb-1.5">What do you need?</label>
+            <textarea className="w-full border border-merqt-border rounded px-3 py-2.5 text-sm resize-none outline-none focus:border-merqt-indigo mb-3.5"
               rows={4} value={description} onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe what you need. The more detail, the better the seller can help." />
-            <p className="text-xs text-li-text-3 mt-1">At least 10 characters</p>
-          </div>
+              placeholder="Describe what you're looking for" />
 
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Preferred date or timeframe <span className="font-normal text-li-text-3">(optional)</span>
-            </label>
-            <input className="w-full border border-li-border rounded px-3 py-2 text-sm"
+            <label className="block text-xs text-merqt-text-muted mb-1.5">Preferred date or timeframe</label>
+            <input className="w-full border border-merqt-border rounded px-3 py-2.5 text-sm outline-none focus:border-merqt-indigo mb-3.5"
               value={preferredDate} onChange={(e) => setPreferredDate(e.target.value)}
-              placeholder="e.g. This Saturday, or next week" />
-          </div>
+              placeholder="e.g. next weekend" />
 
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Location <span className="font-normal text-li-text-3">(optional)</span>
-            </label>
-            <input className="w-full border border-li-border rounded px-3 py-2 text-sm"
+            <label className="block text-xs text-merqt-text-muted mb-1.5">Location</label>
+            <input className="w-full border border-merqt-border rounded px-3 py-2.5 text-sm outline-none focus:border-merqt-indigo mb-3.5"
               value={location} onChange={(e) => setLocation(e.target.value)}
-              placeholder="Where should the service happen?" />
-          </div>
+              placeholder="Where should this happen?" />
 
-          <div>
-            <label className="block text-sm font-semibold mb-1">
-              Your budget <span className="font-normal text-li-text-3">(optional)</span>
-            </label>
-            <input className="w-full border border-li-border rounded px-3 py-2 text-sm"
+            <label className="block text-xs text-merqt-text-muted mb-1.5">Budget (optional)</label>
+            <input className="w-full border border-merqt-border rounded px-3 py-2.5 text-sm outline-none focus:border-merqt-indigo mb-5"
               value={budget} onChange={(e) => setBudget(e.target.value)}
-              placeholder="Naira amount you have in mind" type="number" />
-          </div>
-        </div>
+              placeholder="e.g. ₦20,000" type="number" />
 
-        <div className="bg-white border border-li-border rounded-card p-4">
-          {error && <p className="text-sm text-li-red mb-2">{error}</p>}
-          <button onClick={sendRequest} disabled={!canSend || sending}
-            className={'w-full py-2.5 rounded-pill font-semibold text-sm text-white ' + (canSend && !sending ? 'bg-li-blue' : 'bg-gray-300')}>
-            {sending ? 'Sending request...' : 'Send request'}
-          </button>
-          <p className="text-xs text-li-text-3 text-center mt-2">
-            This starts a conversation. The seller will respond to arrange details and price.
-          </p>
-        </div>
+            <Button variant="primary" size="lg" className="w-full" disabled={!canSend} onClick={() => setStep(1)}>
+              Continue
+            </Button>
+            {!canSend && <p className="text-xs text-merqt-text-muted text-center mt-2">Describe your need in at least 10 characters</p>}
+          </Card>
+        )}
 
+        {step === 1 && (
+          <Card className="p-5">
+            <div className="text-[15px] font-semibold mb-4">Review your request</div>
+            <div className="flex flex-col gap-2.5 text-[13.5px] mb-5">
+              <div className="flex justify-between"><span className="text-merqt-text-muted">Service</span><span>{service.name}</span></div>
+              <div className="flex justify-between"><span className="text-merqt-text-muted">Details</span><span className="max-w-[260px] text-right">{description}</span></div>
+              <div className="flex justify-between"><span className="text-merqt-text-muted">Timeframe</span><span>{preferredDate || 'Not specified'}</span></div>
+              <div className="flex justify-between"><span className="text-merqt-text-muted">Location</span><span>{location || 'Not specified'}</span></div>
+              <div className="flex justify-between"><span className="text-merqt-text-muted">Budget</span><span>{budget ? formatNaira(Number(budget)) : 'Not specified'}</span></div>
+            </div>
+            {error && <p className="text-sm text-merqt-ochre-dark mb-2.5">{error}</p>}
+            <div className="flex gap-2.5">
+              <Button variant="ghost" size="lg" onClick={() => setStep(0)}>Back</Button>
+              <Button variant="primary" size="lg" className="flex-1" disabled={sending} onClick={sendRequest}>
+                {sending ? 'Sending request...' : 'Send request'}
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {step === 2 && (
+          <Card className="p-7 text-center">
+            <div className="w-12 h-12 rounded-full bg-merqt-success-soft text-merqt-success-dark flex items-center justify-center text-xl mx-auto mb-4">✓</div>
+            <div className="text-[17px] font-semibold mb-1.5">Request sent</div>
+            <div className="text-[13.5px] text-merqt-text-muted mb-5">
+              The seller will respond to start the conversation.
+            </div>
+            <a href="/activity"><Button variant="primary" size="lg">Track in Activity</Button></a>
+          </Card>
+        )}
       </div>
     </div>
   )

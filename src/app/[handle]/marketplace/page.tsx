@@ -1,13 +1,12 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { ProfileClient } from './ProfileClient'
+import { MarketplaceClient } from './MarketplaceClient'
 
-export default async function ProfilePage({
+export default async function MarketplacePage({
   params,
 }: {
   params: { handle: string }
 }) {
-  // The handle comes in as "%40zekfabrics" or "@zekfabrics" - strip the @
   const raw = decodeURIComponent(params.handle)
   const slug = raw.startsWith('@') ? raw.slice(1) : raw
 
@@ -21,11 +20,11 @@ export default async function ProfilePage({
 
   if (!seller) notFound()
 
-  const { data: reviews } = await supabase
-    .from('reviews')
-    .select('*, buyer:users(name), product:products(name)')
+  const { data: products } = await supabase
+    .from('products')
+    .select('*')
     .eq('seller_id', seller.id)
-    .order('created_at', { ascending: false })
+    .eq('moderation_status', 'approved')
 
-  return <ProfileClient seller={seller} reviews={reviews ?? []} />
+  return <MarketplaceClient seller={seller} products={products ?? []} />
 }
