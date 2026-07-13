@@ -8,6 +8,7 @@ const isPrivateRoute = createRouteMatcher([
   '/order(.*)',
   '/request(.*)',
   '/admin(.*)',
+  '/settings(.*)',
 ])
 
 export default clerkMiddleware((auth, req) => {

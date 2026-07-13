@@ -4,13 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
+import { ensureUserRow } from '@/lib/ensureUser'
+import { makeSlug } from '@/lib/slug'
 import { CATEGORIES, CITIES } from '@/lib/constants'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-
-function makeSlug(name: string) {
-  return name.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')
-}
 
 type PlaceResult = { placeId: string; name: string; address: string; lat: number | null; lng: number | null; types: string[] }
 type PlaceMeta = { placeId: string; lat: number | null; lng: number | null; hours: string[] | null }
@@ -83,38 +81,25 @@ export default function OnboardingPage() {
     }
   }
 
+  async function handleSkip() {
+    if (user) {
+      try {
+        await ensureUserRow(supabase, user)
+      } catch {
+        // if this fails, the user row still gets created lazily on the next page they visit
+      }
+    }
+    router.push('/discover')
+  }
+
   async function handleSubmit() {
     if (!user) return
     setLoading(true)
     setError('')
 
     try {
-      // Step 1: make sure this user exists in our database
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id')
-        .eq('clerk_id', user.id)
-        .single()
+      const userId = await ensureUserRow(supabase, user)
 
-      let userId = existingUser?.id
-
-      if (!userId) {
-        const { data: newUser, error: userErr } = await supabase
-          .from('users')
-          .insert({
-            clerk_id: user.id,
-            email: user.primaryEmailAddress?.emailAddress ?? '',
-            name: user.fullName ?? '',
-            avatar_url: user.imageUrl ?? '',
-            role: 'seller',
-          })
-          .select('id')
-          .single()
-        if (userErr) throw userErr
-        userId = newUser.id
-      }
-
-      // Step 2: create the seller profile
       const { error: sellerErr } = await supabase.from('sellers').insert({
         user_id: userId,
         business_name: businessName,
@@ -134,6 +119,8 @@ export default function OnboardingPage() {
       })
       if (sellerErr) throw sellerErr
 
+      await supabase.from('users').update({ role: 'seller' }).eq('id', userId)
+
       router.push('/dashboard')
     } catch (err) {
       console.error('Onboarding error:', err)
@@ -148,9 +135,14 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-merqt-bg flex items-start justify-center pt-12 px-4 pb-12">
       <div className="w-full max-w-lg">
+        <div className="flex justify-end mb-2">
+          <button type="button" onClick={handleSkip} className="text-[13px] font-semibold text-merqt-text-muted hover:text-merqt-text">
+            Skip for now →
+          </button>
+        </div>
         <div className="text-center mb-7">
           <h1 className="font-serif text-2xl font-semibold text-merqt-text mb-1.5">Set up your Merqt profile</h1>
-          <p className="text-merqt-text-muted text-sm">Your trade profile on Merqt. Takes 2 minutes.</p>
+          <p className="text-merqt-text-muted text-sm">Your trade profile on Merqt. Takes 2 minutes. Not selling yet? You can skip this and browse as a buyer.</p>
         </div>
 
         <Card className="p-5 space-y-4">

@@ -3,23 +3,29 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useUser, UserButton } from '@clerk/nextjs'
+import { useUser } from '@clerk/nextjs'
 import { useEffect, useState } from 'react'
 import { useSupabaseClient } from '@/lib/supabase/client'
+import { ProfileMenu } from './ProfileMenu'
 
 export function Navbar() {
   const pathname = usePathname()
   const { user, isSignedIn } = useUser()
   const [isSeller, setIsSeller] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [profile, setProfile] = useState<{ name: string; avatarUrl: string; slug: string | null }>({
+    name: '', avatarUrl: '', slug: null,
+  })
   const supabase = useSupabaseClient()
 
   useEffect(() => {
     async function checkStatus() {
       if (!user) return
       const { data: userRow } = await supabase
-        .from('users').select('id').eq('clerk_id', user.id).single()
+        .from('users').select('id, name, avatar_url, slug').eq('clerk_id', user.id).single()
       if (!userRow) return
+
+      setProfile({ name: userRow.name ?? '', avatarUrl: userRow.avatar_url ?? '', slug: userRow.slug ?? null })
 
       const { data: sellerRow } = await supabase
         .from('sellers').select('id').eq('user_id', userRow.id).single()
@@ -91,7 +97,7 @@ export function Navbar() {
 
         {isSignedIn ? (
           <div className="ml-1 flex-shrink-0">
-            <UserButton afterSignOutUrl="/discover" />
+            <ProfileMenu name={profile.name} avatarUrl={profile.avatarUrl} slug={profile.slug} />
           </div>
         ) : (
           <div className="flex items-center gap-2 ml-1 flex-shrink-0">
