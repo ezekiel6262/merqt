@@ -4,6 +4,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useSearchParams } from 'next/navigation'
+import { CldUploadWidget } from 'next-cloudinary'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
 import { formatNaira } from '@/lib/format'
@@ -41,6 +42,7 @@ function ActivityInner() {
   const [reviewing, setReviewing] = useState<string | null>(null)
   const [rating, setRating] = useState(5)
   const [body, setBody] = useState('')
+  const [reviewPhotos, setReviewPhotos] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [reporting, setReporting] = useState<string | null>(null)
   const [reportReason, setReportReason] = useState('')
@@ -143,6 +145,7 @@ function ActivityInner() {
       product_id: order.product_id,
       rating,
       body: body || null,
+      photo_urls: reviewPhotos.length > 0 ? reviewPhotos : null,
     }).select('id').single()
 
     if (newReview) {
@@ -157,6 +160,7 @@ function ActivityInner() {
     setReviewing(null)
     setRating(5)
     setBody('')
+    setReviewPhotos([])
     setSaving(false)
     loadActivity()
   }
@@ -336,6 +340,40 @@ function ActivityInner() {
                           <textarea className="w-full border border-merqt-border rounded px-3 py-2 text-sm resize-none outline-none focus:border-merqt-indigo"
                             rows={2} value={body} onChange={(e) => setBody(e.target.value)}
                             placeholder="How was your experience?" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold mb-1">Photos (optional)</label>
+                          <div className="flex gap-2 flex-wrap">
+                            {reviewPhotos.map((url, i) => (
+                              <div key={url} className="relative w-14 h-14 rounded overflow-hidden border border-merqt-border">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={url} alt="" className="w-full h-full object-cover" />
+                                <button
+                                  type="button"
+                                  onClick={() => setReviewPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                                  className="absolute top-0 right-0 bg-merqt-text text-merqt-surface text-[10px] w-4 h-4 flex items-center justify-center"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                            {reviewPhotos.length < 4 && (
+                              <CldUploadWidget
+                                uploadPreset="merqt_products"
+                                onSuccess={(result: any) => setReviewPhotos((prev) => [...prev, result.info.secure_url])}
+                              >
+                                {({ open }) => (
+                                  <button
+                                    type="button"
+                                    onClick={() => open()}
+                                    className="w-14 h-14 rounded border border-dashed border-merqt-border text-merqt-text-muted text-xs flex items-center justify-center"
+                                  >
+                                    + Add
+                                  </button>
+                                )}
+                              </CldUploadWidget>
+                            )}
+                          </div>
                         </div>
                         <div className="flex gap-2">
                           <Button variant="ghost" className="flex-1" onClick={() => setReviewing(null)}>Cancel</Button>

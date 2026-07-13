@@ -199,6 +199,14 @@ export function ProfileClient({
                   <span className="text-[11px] text-merqt-success-dark bg-merqt-success-soft px-2 py-0.5 rounded">Verified purchase</span>
                 </div>
                 {r.body && <p className="text-[13.5px] leading-relaxed text-merqt-text">{r.body}</p>}
+                {r.photo_urls && r.photo_urls.length > 0 && (
+                  <div className="flex gap-2 flex-wrap mt-2">
+                    {r.photo_urls.map((url: string) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={url} src={url} alt="" className="w-16 h-16 rounded object-cover border border-merqt-border" />
+                    ))}
+                  </div>
+                )}
                 {r.product?.name && (
                   <p className="text-xs text-merqt-text-muted mt-1">Purchased: {r.product.name}</p>
                 )}

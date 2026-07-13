@@ -52,6 +52,14 @@ export function FlaggedReviewsClient({ initialReviews }: { initialReviews: any[]
                 </span>
               </div>
               <p className="text-sm leading-relaxed mb-2">{r.body}</p>
+              {r.photo_urls && r.photo_urls.length > 0 && (
+                <div className="flex gap-2 flex-wrap mb-2">
+                  {r.photo_urls.map((url: string) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={url} src={url} alt="" className="w-16 h-16 rounded object-cover border border-merqt-border" />
+                  ))}
+                </div>
+              )}
               {r.flag_reason && (
                 <p className="text-xs text-merqt-ochre-dark mb-3">
                   <span className="font-semibold">Why:</span> {r.flag_reason}
