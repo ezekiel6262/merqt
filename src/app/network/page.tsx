@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { CldUploadWidget } from 'next-cloudinary'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
@@ -42,7 +43,7 @@ export default function NetworkPage() {
   async function loadFeed() {
     const { data: postRows } = await supabase
       .from('posts')
-      .select('*, author:users(name, avatar_url), seller:sellers(business_name, slug, logo_url)')
+      .select('*, author:users(name, avatar_url, slug), seller:sellers(business_name, slug, logo_url)')
       .order('created_at', { ascending: false })
       .limit(30)
     setPosts(postRows ?? [])
@@ -126,13 +127,13 @@ export default function NetworkPage() {
             <div className="flex flex-col gap-2.5">
               {following.map((s) => (
                 <Card key={s.id} className="p-3">
-                  <div className="flex gap-2.5 items-center mb-2">
+                  <Link href={`/@${s.slug}`} className="flex gap-2.5 items-center mb-2">
                     <SellerThumb name={s.business_name} logoUrl={s.logo_url} />
                     <div className="min-w-0 flex-1">
                       <div className="text-[13px] font-semibold truncate">{s.business_name}</div>
                       <div className="text-[11.5px] text-merqt-text-muted truncate">{s.category} · {s.city}</div>
                     </div>
-                  </div>
+                  </Link>
                   <div className="flex gap-2">
                     <a href={`/@${s.slug}/marketplace`} className="flex-1">
                       <button className="w-full bg-merqt-indigo text-merqt-surface rounded px-2.5 py-1.5 text-[11.5px] font-semibold">
@@ -196,28 +197,51 @@ export default function NetworkPage() {
             {posts.map((post) => {
               const isSeller = !!post.seller_id
               const authorName = isSeller ? post.seller?.business_name : post.author?.name || 'Buyer'
+              const profileHref = isSeller
+                ? post.seller?.slug ? `/@${post.seller.slug}` : null
+                : post.author?.slug ? `/u/${post.author.slug}` : null
+              const authorAvatar = (
+                <Avatar
+                  src={isSeller ? post.seller?.logo_url : post.author?.avatar_url}
+                  name={authorName}
+                  size={36}
+                  shape={isSeller ? 'square' : 'circle'}
+                />
+              )
               return (
                 <Card key={post.id} className="p-4">
                   <div className="flex justify-between items-start mb-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar
-                        src={isSeller ? post.seller?.logo_url : post.author?.avatar_url}
-                        name={authorName}
-                        size={36}
-                        shape={isSeller ? 'square' : 'circle'}
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold">{authorName}</span>
-                          {isSeller && (
-                            <span className="text-[10.5px] font-bold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">
-                              Business
-                            </span>
-                          )}
+                    {profileHref ? (
+                      <Link href={profileHref} className="flex items-center gap-2.5">
+                        {authorAvatar}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold">{authorName}</span>
+                            {isSeller && (
+                              <span className="text-[10.5px] font-bold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">
+                                Business
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-merqt-text-muted">{timeAgoShort(post.created_at)}</div>
                         </div>
-                        <div className="text-xs text-merqt-text-muted">{timeAgoShort(post.created_at)}</div>
+                      </Link>
+                    ) : (
+                      <div className="flex items-center gap-2.5">
+                        {authorAvatar}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold">{authorName}</span>
+                            {isSeller && (
+                              <span className="text-[10.5px] font-bold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">
+                                Business
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-merqt-text-muted">{timeAgoShort(post.created_at)}</div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     {isSeller && post.seller?.id && (
                       <button
                         onClick={() => toggleFollow(post.seller_id)}

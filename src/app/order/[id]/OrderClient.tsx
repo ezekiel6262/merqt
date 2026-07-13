@@ -63,6 +63,17 @@ export function OrderClient({
     verify()
   }, [verifyReference, verifyOrderId, user])
 
+  const [isOwnListing, setIsOwnListing] = useState(false)
+
+  useEffect(() => {
+    async function checkOwnership() {
+      if (!user) return
+      const { data: userRow } = await supabase.from('users').select('id').eq('clerk_id', user.id).single()
+      if (userRow && userRow.id === seller.user_id) setIsOwnListing(true)
+    }
+    checkOwnership()
+  }, [user])
+
   const [offer, setOffer] = useState<any>(null)
   const [showOfferForm, setShowOfferForm] = useState(false)
   const [offerAmount, setOfferAmount] = useState('')
@@ -172,6 +183,17 @@ export function OrderClient({
         <Card className="p-6 max-w-sm text-center">
           <p className="text-sm text-merqt-text-muted mb-4">Please sign in to place an order.</p>
           <a href="/login"><Button variant="primary">Sign in</Button></a>
+        </Card>
+      </div>
+    )
+  }
+
+  if (isOwnListing) {
+    return (
+      <div className="min-h-screen bg-merqt-bg flex items-center justify-center px-4">
+        <Card className="p-6 max-w-sm text-center">
+          <p className="text-sm text-merqt-text-muted mb-4">This is your own listing - you can&apos;t order or make an offer on it.</p>
+          <a href="/dashboard"><Button variant="primary">Go to dashboard</Button></a>
         </Card>
       </div>
     )

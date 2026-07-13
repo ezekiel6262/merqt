@@ -13,7 +13,7 @@ export default async function DiscoverPage() {
 
   const { data: requests } = await supabase
     .from('buyer_requests')
-    .select('*, buyer:users(name, avatar_url)')
+    .select('*, buyer:users(name, avatar_url, slug)')
     .eq('status', 'open')
     .order('created_at', { ascending: false })
 

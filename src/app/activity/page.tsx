@@ -4,6 +4,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { CldUploadWidget } from 'next-cloudinary'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
@@ -97,7 +98,7 @@ function ActivityInner() {
 
     const { data: convoRows } = await supabase
       .from('conversations')
-      .select('*, buyer:users(name, avatar_url), seller:sellers(business_name, slug, logo_url), messages(id, text, sender_user_id, read_at, created_at)')
+      .select('*, buyer:users(name, avatar_url, slug), seller:sellers(business_name, slug, logo_url), messages(id, text, sender_user_id, read_at, created_at)')
       .or(orFilter)
       .order('created_at', { ascending: false })
 
@@ -229,6 +230,12 @@ function ActivityInner() {
   const reviewNeededCount = orders.filter((o) => (o.status === 'delivered' || o.status === 'completed') && !o.review).length
 
   const selectedConvo = conversations.find((c) => c.id === selectedConvoId)
+  const selectedConvoIAmBuyer = !!(selectedConvo && ownUserId && selectedConvo.buyer_id === ownUserId)
+  const selectedConvoProfileHref = selectedConvo
+    ? selectedConvoIAmBuyer
+      ? selectedConvo.seller?.slug ? `/@${selectedConvo.seller.slug}` : null
+      : selectedConvo.buyer?.slug ? `/u/${selectedConvo.buyer.slug}` : null
+    : null
 
   if (loading) return <div className="p-10 text-merqt-text-muted">Loading...</div>
 
@@ -496,6 +503,9 @@ function ActivityInner() {
                 const iAmBuyer = c.buyer && ownUserId && c.buyer_id === ownUserId
                 const otherName = iAmBuyer ? c.seller?.business_name : c.buyer?.name || 'Buyer'
                 const otherAvatar = iAmBuyer ? c.seller?.logo_url : c.buyer?.avatar_url
+                const otherProfileHref = iAmBuyer
+                  ? c.seller?.slug ? `/@${c.seller.slug}` : null
+                  : c.buyer?.slug ? `/u/${c.buyer.slug}` : null
                 const msgs = c.messages ?? []
                 const last = msgs[msgs.length - 1]
                 const unread = msgs.filter((m: any) => m.sender_user_id !== ownUserId && !m.read_at).length
@@ -505,9 +515,21 @@ function ActivityInner() {
                     onClick={() => setSelectedConvoId(c.id)}
                     className={`flex items-center gap-2.5 px-4 py-3 cursor-pointer border-b border-merqt-border ${selectedConvoId === c.id ? 'bg-merqt-indigo-soft' : 'hover:bg-merqt-bg'}`}
                   >
-                    <Avatar src={otherAvatar} name={otherName || '?'} size={36} shape={iAmBuyer ? 'square' : 'circle'} />
+                    {otherProfileHref ? (
+                      <Link href={otherProfileHref} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+                        <Avatar src={otherAvatar} name={otherName || '?'} size={36} shape={iAmBuyer ? 'square' : 'circle'} />
+                      </Link>
+                    ) : (
+                      <Avatar src={otherAvatar} name={otherName || '?'} size={36} shape={iAmBuyer ? 'square' : 'circle'} />
+                    )}
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13.5px] font-semibold truncate">{otherName}</div>
+                      {otherProfileHref ? (
+                        <Link href={otherProfileHref} onClick={(e) => e.stopPropagation()} className="text-[13.5px] font-semibold truncate hover:underline block">
+                          {otherName}
+                        </Link>
+                      ) : (
+                        <div className="text-[13.5px] font-semibold truncate">{otherName}</div>
+                      )}
                       <div className="text-xs text-merqt-text-muted truncate">{last?.text ?? 'No messages yet'}</div>
                     </div>
                     {unread > 0 && (
@@ -526,15 +548,31 @@ function ActivityInner() {
               ) : (
                 <>
                   <div className="p-4 border-b border-merqt-border flex items-center gap-2.5">
-                    <Avatar
-                      src={selectedConvo.buyer_id === ownUserId ? selectedConvo.seller?.logo_url : selectedConvo.buyer?.avatar_url}
-                      name={selectedConvo.buyer_id === ownUserId ? selectedConvo.seller?.business_name : selectedConvo.buyer?.name || 'Buyer'}
-                      size={30}
-                      shape={selectedConvo.buyer_id === ownUserId ? 'square' : 'circle'}
-                    />
-                    <span className="font-semibold text-sm">
-                      {selectedConvo.buyer_id === ownUserId ? selectedConvo.seller?.business_name : selectedConvo.buyer?.name || 'Buyer'}
-                    </span>
+                    {selectedConvoProfileHref ? (
+                      <Link href={selectedConvoProfileHref} className="flex items-center gap-2.5 hover:underline">
+                        <Avatar
+                          src={selectedConvoIAmBuyer ? selectedConvo.seller?.logo_url : selectedConvo.buyer?.avatar_url}
+                          name={selectedConvoIAmBuyer ? selectedConvo.seller?.business_name : selectedConvo.buyer?.name || 'Buyer'}
+                          size={30}
+                          shape={selectedConvoIAmBuyer ? 'square' : 'circle'}
+                        />
+                        <span className="font-semibold text-sm">
+                          {selectedConvoIAmBuyer ? selectedConvo.seller?.business_name : selectedConvo.buyer?.name || 'Buyer'}
+                        </span>
+                      </Link>
+                    ) : (
+                      <>
+                        <Avatar
+                          src={selectedConvoIAmBuyer ? selectedConvo.seller?.logo_url : selectedConvo.buyer?.avatar_url}
+                          name={selectedConvoIAmBuyer ? selectedConvo.seller?.business_name : selectedConvo.buyer?.name || 'Buyer'}
+                          size={30}
+                          shape={selectedConvoIAmBuyer ? 'square' : 'circle'}
+                        />
+                        <span className="font-semibold text-sm">
+                          {selectedConvoIAmBuyer ? selectedConvo.seller?.business_name : selectedConvo.buyer?.name || 'Buyer'}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2.5 max-h-96">
                     {(selectedConvo.messages ?? []).map((m: any) => {

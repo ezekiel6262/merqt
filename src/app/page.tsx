@@ -35,11 +35,12 @@ export default function Home() {
   const [draftUrgency, setDraftUrgency] = useState<'urgent' | 'this_week' | 'flexible'>('flexible')
   const [posting, setPosting] = useState(false)
   const [respondingId, setRespondingId] = useState<string | null>(null)
+  const [ownUserId, setOwnUserId] = useState<string | null>(null)
 
   async function loadHome() {
     const [{ data: requestRows }, { data: postRows }, { data: sellerRows }] = await Promise.all([
-      supabase.from('buyer_requests').select('*, buyer:users(name, avatar_url)').eq('status', 'open').order('created_at', { ascending: false }).limit(4),
-      supabase.from('posts').select('*, author:users(name, avatar_url), seller:sellers(business_name, slug, logo_url)').order('created_at', { ascending: false }).limit(5),
+      supabase.from('buyer_requests').select('*, buyer:users(name, avatar_url, slug)').eq('status', 'open').order('created_at', { ascending: false }).limit(4),
+      supabase.from('posts').select('*, author:users(name, avatar_url, slug), seller:sellers(business_name, slug, logo_url)').order('created_at', { ascending: false }).limit(5),
       supabase.from('sellers').select('*').order('rating', { ascending: false }).limit(4),
     ])
     setRequests(requestRows ?? [])
@@ -49,6 +50,15 @@ export default function Home() {
   }
 
   useEffect(() => { loadHome() }, [])
+
+  useEffect(() => {
+    async function loadOwnUserId() {
+      if (!user) return
+      const { data } = await supabase.from('users').select('id').eq('clerk_id', user.id).single()
+      if (data) setOwnUserId(data.id)
+    }
+    loadOwnUserId()
+  }, [user])
 
   async function postRequest() {
     if (!user) { router.push('/login'); return }
@@ -104,10 +114,17 @@ export default function Home() {
             {requests.map((r) => (
               <Card key={r.id} className="p-3">
                 <div className="flex justify-between items-start mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <Avatar src={r.buyer?.avatar_url} name={r.buyer?.name || 'Buyer'} size={26} />
-                    <div className="text-[12.5px] font-semibold">{r.buyer?.name || 'Buyer'}</div>
-                  </div>
+                  {r.buyer?.slug ? (
+                    <Link href={`/u/${r.buyer.slug}`} className="flex items-center gap-2">
+                      <Avatar src={r.buyer?.avatar_url} name={r.buyer?.name || 'Buyer'} size={26} />
+                      <div className="text-[12.5px] font-semibold">{r.buyer?.name || 'Buyer'}</div>
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Avatar src={r.buyer?.avatar_url} name={r.buyer?.name || 'Buyer'} size={26} />
+                      <div className="text-[12.5px] font-semibold">{r.buyer?.name || 'Buyer'}</div>
+                    </div>
+                  )}
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded whitespace-nowrap ${urgencyClasses(r.urgency)}`}>
                     {urgencyLabel(r.urgency)}
                   </span>
@@ -118,9 +135,13 @@ export default function Home() {
                     <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">{r.category}</span>
                   )}
                   <div className="flex-1" />
-                  <Button variant="primary" size="sm" disabled={respondingId === r.id} onClick={() => respond(r)}>
-                    {respondingId === r.id ? '...' : 'I can help'}
-                  </Button>
+                  {r.buyer_id === ownUserId ? (
+                    <span className="text-xs text-merqt-text-muted">Your request</span>
+                  ) : (
+                    <Button variant="primary" size="sm" disabled={respondingId === r.id} onClick={() => respond(r)}>
+                      {respondingId === r.id ? '...' : 'I can help'}
+                    </Button>
+                  )}
                 </div>
               </Card>
             ))}
@@ -173,16 +194,31 @@ export default function Home() {
             {posts.map((post) => {
               const isSeller = !!post.seller_id
               const authorName = isSeller ? post.seller?.business_name : post.author?.name || 'Buyer'
+              const profileHref = isSeller
+                ? post.seller?.slug ? `/@${post.seller.slug}` : null
+                : post.author?.slug ? `/u/${post.author.slug}` : null
+              const authorAvatar = (
+                <Avatar
+                  src={isSeller ? post.seller?.logo_url : post.author?.avatar_url}
+                  name={authorName}
+                  size={28}
+                  shape={isSeller ? 'square' : 'circle'}
+                />
+              )
               return (
                 <Card key={post.id} className="p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Avatar
-                      src={isSeller ? post.seller?.logo_url : post.author?.avatar_url}
-                      name={authorName}
-                      size={28}
-                      shape={isSeller ? 'square' : 'circle'}
-                    />
-                    <span className="text-sm font-semibold">{authorName}</span>
+                    {profileHref ? (
+                      <Link href={profileHref} className="flex items-center gap-2">
+                        {authorAvatar}
+                        <span className="text-sm font-semibold">{authorName}</span>
+                      </Link>
+                    ) : (
+                      <>
+                        {authorAvatar}
+                        <span className="text-sm font-semibold">{authorName}</span>
+                      </>
+                    )}
                     {isSeller && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">
                         Business
