@@ -36,6 +36,7 @@ function ActivityInner() {
   const [tab, setTab] = useState<Tab>(searchParams.get('tab') === 'messages' ? 'messages' : 'orders')
 
   const [orders, setOrders] = useState<any[]>([])
+  const [offers, setOffers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [reviewing, setReviewing] = useState<string | null>(null)
   const [rating, setRating] = useState(5)
@@ -69,6 +70,14 @@ function ActivityInner() {
       .order('created_at', { ascending: false })
 
     setOrders(orderRows ?? [])
+
+    const { data: offerRows } = await supabase
+      .from('offers')
+      .select('*, product:products(name, price), seller:sellers(business_name, slug)')
+      .eq('buyer_id', userRow.id)
+      .order('created_at', { ascending: false })
+
+    setOffers(offerRows ?? [])
     setLoading(false)
   }
 
@@ -223,6 +232,33 @@ function ActivityInner() {
 
         {tab === 'orders' && (
           <>
+            {offers.length > 0 && (
+              <>
+                <h2 className="font-serif text-lg font-semibold text-merqt-text mb-3.5">Offers you've sent</h2>
+                <div className="flex flex-col gap-3.5 mb-7">
+                  {offers.map((o) => (
+                    <Card key={o.id} className="p-4">
+                      <div className="flex justify-between items-start mb-2 gap-3">
+                        <div>
+                          <p className="font-semibold text-sm">{o.product?.name}</p>
+                          <p className="text-xs text-merqt-text-muted mb-1.5">
+                            {o.seller?.business_name} · listed at {formatNaira(o.product?.price ?? 0)}
+                          </p>
+                          <StatusPill label={o.status} />
+                        </div>
+                        <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(o.amount)}</p>
+                      </div>
+                      {o.status === 'accepted' && !o.resulting_order_id && (
+                        <a href={`/order/${o.product_id}?offer=${o.id}`}>
+                          <Button variant="primary" className="w-full">Complete your order</Button>
+                        </a>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
+
             {orders.length === 0 && (
               <Card className="p-8 text-center">
                 <p className="text-sm text-merqt-text-muted">No activity yet. Your orders and requests will show up here.</p>

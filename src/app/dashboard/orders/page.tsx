@@ -63,6 +63,8 @@ export default function SellerOrdersPage() {
   const supabase = useSupabaseClient()
   const [orders, setOrders] = useState<any[]>([])
   const [buyerRequests, setBuyerRequests] = useState<any[]>([])
+  const [offers, setOffers] = useState<any[]>([])
+  const [respondingOfferId, setRespondingOfferId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'products' | 'services'>('all')
   const [nudges, setNudges] = useState<Record<string, string>>({})
@@ -96,8 +98,30 @@ export default function SellerOrdersPage() {
       .order('created_at', { ascending: false })
 
     setBuyerRequests(requestRows ?? [])
+
+    const { data: offerRows } = await supabase
+      .from('offers')
+      .select('*, product:products(name, price), buyer:users(name)')
+      .eq('seller_id', sellerRow.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+
+    setOffers(offerRows ?? [])
     setLoading(false)
     checkStuckOrders(orderRows ?? [])
+  }
+
+  async function respondToOffer(offer: any, decision: 'accepted' | 'declined') {
+    setRespondingOfferId(offer.id)
+    try {
+      await supabase
+        .from('offers')
+        .update({ status: decision, responded_at: new Date().toISOString() })
+        .eq('id', offer.id)
+      setOffers((prev) => prev.filter((o) => o.id !== offer.id))
+    } finally {
+      setRespondingOfferId(null)
+    }
   }
 
   useEffect(() => { loadOrders() }, [user])
@@ -181,6 +205,46 @@ export default function SellerOrdersPage() {
             </button>
           ))}
         </Card>
+
+        {offers.length > 0 && (
+          <>
+            <h2 className="font-serif text-lg font-semibold text-merqt-text mb-3.5">Pending offers</h2>
+            <div className="flex flex-col gap-3.5 mb-7">
+              {offers.map((o) => (
+                <Card key={o.id} className="p-4">
+                  <div className="flex items-start justify-between mb-2 gap-3">
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm">{o.product?.name}</p>
+                      <p className="text-xs text-merqt-text-muted">
+                        From {o.buyer?.name || 'a buyer'} · listed at {formatNaira(o.product?.price ?? 0)}
+                      </p>
+                    </div>
+                    <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(o.amount)}</p>
+                  </div>
+                  {o.message && <p className="text-sm text-merqt-text-muted mb-3">&ldquo;{o.message}&rdquo;</p>}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      className="flex-1"
+                      disabled={respondingOfferId === o.id}
+                      onClick={() => respondToOffer(o, 'declined')}
+                    >
+                      Decline
+                    </Button>
+                    <Button
+                      variant="primary"
+                      className="flex-1"
+                      disabled={respondingOfferId === o.id}
+                      onClick={() => respondToOffer(o, 'accepted')}
+                    >
+                      Accept
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </>
+        )}
 
         {filtered.length === 0 && (
           <Card className="p-8 text-center">

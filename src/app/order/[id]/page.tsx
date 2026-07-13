@@ -4,8 +4,10 @@ import { OrderClient } from './OrderClient'
 
 export default async function OrderPage({
   params,
+  searchParams,
 }: {
   params: { id: string }
+  searchParams: { offer?: string }
 }) {
   const supabase = createClient()
 
@@ -26,5 +28,5 @@ export default async function OrderPage({
 
   if (!seller) notFound()
 
-  return <OrderClient product={product} seller={seller} />
+  return <OrderClient product={product} seller={seller} offerId={searchParams.offer} />
 }

@@ -1,9 +1,10 @@
 'use client'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
+import { ensureUserRow } from '@/lib/ensureUser'
 import { formatNaira } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -11,7 +12,7 @@ import { StepDots } from '@/components/ui/StepDots'
 
 const STEP_LABELS = ['Delivery', 'Payment', 'Summary', 'Done']
 
-export function OrderClient({ product, seller }: { product: any; seller: any }) {
+export function OrderClient({ product, seller, offerId }: { product: any; seller: any; offerId?: string }) {
   const { user, isSignedIn } = useUser()
   const supabase = useSupabaseClient()
 
@@ -24,8 +25,56 @@ export function OrderClient({ product, seller }: { product: any; seller: any }) 
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState('')
 
+  const [offer, setOffer] = useState<any>(null)
+  const [showOfferForm, setShowOfferForm] = useState(false)
+  const [offerAmount, setOfferAmount] = useState('')
+  const [offerMessage, setOfferMessage] = useState('')
+  const [offerSending, setOfferSending] = useState(false)
+  const [offerSent, setOfferSent] = useState(false)
+  const [offerError, setOfferError] = useState('')
+
+  useEffect(() => {
+    async function loadOffer() {
+      if (!offerId || !user) return
+      const { data } = await supabase
+        .from('offers')
+        .select('*')
+        .eq('id', offerId)
+        .eq('status', 'accepted')
+        .eq('product_id', product.id)
+        .single()
+      if (data) setOffer(data)
+    }
+    loadOffer()
+  }, [offerId, user])
+
+  async function sendOffer() {
+    if (!user) return
+    const amount = parseFloat(offerAmount)
+    if (!amount || amount <= 0) return
+    setOfferSending(true)
+    setOfferError('')
+    try {
+      const buyerId = await ensureUserRow(supabase, user)
+      const { error: offerErr } = await supabase.from('offers').insert({
+        product_id: product.id,
+        buyer_id: buyerId,
+        seller_id: seller.id,
+        amount,
+        message: offerMessage.trim() || null,
+      })
+      if (offerErr) throw offerErr
+      setOfferSent(true)
+    } catch (err: any) {
+      setOfferError(err.message ?? 'Something went wrong')
+    } finally {
+      setOfferSending(false)
+    }
+  }
+
   const isService = product.type === 'service'
-  const total = product.price * quantity
+  const negotiatedTotal = offer ? Number(offer.amount) : null
+  const total = negotiatedTotal ?? product.price * quantity
 
   async function placeOrder() {
     if (!user) return
@@ -33,39 +82,31 @@ export function OrderClient({ product, seller }: { product: any; seller: any }) 
     setError('')
 
     try {
-      const { data: existingUser } = await supabase
-        .from('users').select('id').eq('clerk_id', user.id).single()
+      const buyerId = await ensureUserRow(supabase, user)
 
-      let buyerId = existingUser?.id
-      if (!buyerId) {
-        const { data: newUser, error: uErr } = await supabase
-          .from('users')
-          .insert({
-            clerk_id: user.id,
-            email: user.primaryEmailAddress?.emailAddress ?? '',
-            name: user.fullName ?? '',
-            avatar_url: user.imageUrl ?? '',
-            role: 'buyer',
-          })
-          .select('id').single()
-        if (uErr) throw uErr
-        buyerId = newUser.id
-      }
-
-      const { error: oErr } = await supabase.from('orders').insert({
-        buyer_id: buyerId,
-        seller_id: seller.id,
-        product_id: product.id,
-        quantity,
-        total_amount: total,
-        payment_method: payment,
-        payment_status: 'pending',
-        status: 'pending',
-        delivery_address: address || null,
-        delivery_city: city || null,
-        note: note || null,
-      })
+      const { data: newOrder, error: oErr } = await supabase
+        .from('orders')
+        .insert({
+          buyer_id: buyerId,
+          seller_id: seller.id,
+          product_id: product.id,
+          quantity: negotiatedTotal ? 1 : quantity,
+          total_amount: total,
+          payment_method: payment,
+          payment_status: 'pending',
+          status: 'pending',
+          delivery_address: address || null,
+          delivery_city: city || null,
+          note: note || null,
+          offer_id: offer?.id ?? null,
+        })
+        .select('id')
+        .single()
       if (oErr) throw oErr
+
+      if (offer) {
+        await supabase.from('offers').update({ resulting_order_id: newOrder.id }).eq('id', offer.id)
+      }
 
       setStep(3)
     } catch (err: any) {
@@ -102,11 +143,62 @@ export function OrderClient({ product, seller }: { product: any; seller: any }) 
               <div className="flex-1">
                 <p className="font-semibold text-sm">{product.name}</p>
                 <p className="text-sm text-merqt-text-muted">{seller.business_name}</p>
-                <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(product.price)}</p>
+                {negotiatedTotal ? (
+                  <p className="font-mono text-sm font-semibold text-merqt-indigo">
+                    {formatNaira(negotiatedTotal)} <span className="text-merqt-text-muted font-sans font-normal">(negotiated price)</span>
+                  </p>
+                ) : (
+                  <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(product.price)}</p>
+                )}
               </div>
             </div>
 
-            {!isService && (
+            {product.negotiable && !offer && (
+              <div className="border border-merqt-border rounded p-3 mb-5">
+                {offerSent ? (
+                  <p className="text-sm text-merqt-success-dark">
+                    Offer sent - {seller.business_name} will respond soon. Track it in your Activity page.
+                  </p>
+                ) : showOfferForm ? (
+                  <>
+                    <label className="block text-xs text-merqt-text-muted mb-1.5">Your offer</label>
+                    <input
+                      type="number"
+                      className="w-full border border-merqt-border rounded px-3 py-2 text-sm mb-2 outline-none focus:border-merqt-indigo"
+                      value={offerAmount}
+                      onChange={(e) => setOfferAmount(e.target.value)}
+                      placeholder="Proposed price"
+                    />
+                    <textarea
+                      className="w-full border border-merqt-border rounded px-3 py-2 text-sm resize-none outline-none focus:border-merqt-indigo mb-2"
+                      rows={2}
+                      value={offerMessage}
+                      onChange={(e) => setOfferMessage(e.target.value)}
+                      placeholder="Note to seller (optional)"
+                    />
+                    {offerError && <p className="text-xs text-merqt-ochre-dark mb-2">{offerError}</p>}
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" className="flex-1" onClick={() => setShowOfferForm(false)}>Cancel</Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="flex-1"
+                        disabled={offerSending || !offerAmount}
+                        onClick={sendOffer}
+                      >
+                        {offerSending ? 'Sending...' : 'Send offer'}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <button onClick={() => setShowOfferForm(true)} className="text-sm font-semibold text-merqt-indigo">
+                    Propose a different price
+                  </button>
+                )}
+              </div>
+            )}
+
+            {!isService && !negotiatedTotal && (
               <>
                 <label className="block text-xs text-merqt-text-muted mb-1.5">Quantity</label>
                 <div className="flex items-center gap-3 mb-5">
