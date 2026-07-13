@@ -258,6 +258,15 @@ export default function SellerOrdersPage() {
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                       <TypeTag label={o.is_service ? 'Service request' : 'Product order'} kind={o.is_service ? 'service' : 'product'} />
                       <StatusPill label={o.status} cancelled={isCancelled} />
+                      {o.payment_method === 'platform' && (
+                        <span className="text-[10.5px] font-bold px-2 py-1 rounded-pill bg-merqt-success-soft text-merqt-success-dark">
+                          {o.payment_status === 'released'
+                            ? 'Payment released'
+                            : o.payment_status === 'paid'
+                            ? 'Payment held in escrow'
+                            : 'Awaiting payment'}
+                        </span>
+                      )}
                       {!isTerminal(o.status) && Date.now() - new Date(o.status_changed_at).getTime() > STUCK_THRESHOLD_MS && (
                         <span className="text-xs px-2 py-0.5 rounded bg-merqt-ochre-soft text-merqt-ochre-dark font-semibold">
                           Needs attention

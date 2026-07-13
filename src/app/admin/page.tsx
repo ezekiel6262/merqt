@@ -14,11 +14,12 @@ async function count(admin: ReturnType<typeof createAdminClient>, table: string,
 export default async function AdminOverviewPage() {
   const admin = createAdminClient()
 
-  const [pendingVerifications, flaggedReviews, flaggedListings, openDisputes, totalSellers, totalOrders] = await Promise.all([
+  const [pendingVerifications, flaggedReviews, flaggedListings, openDisputes, pendingPayouts, totalSellers, totalOrders] = await Promise.all([
     count(admin, 'sellers', { identity_status: 'pending' }),
     count(admin, 'reviews', { flagged_suspicious: true, hidden: false }),
     count(admin, 'products', { moderation_status: 'flagged' }),
     count(admin, 'orders', { dispute_status: 'reported' }),
+    count(admin, 'orders', { payment_status: 'released', payout_status: 'pending' }),
     count(admin, 'sellers', {}),
     count(admin, 'orders', {}),
   ])
@@ -28,6 +29,7 @@ export default async function AdminOverviewPage() {
     { label: 'Flagged reviews', value: flaggedReviews, href: '/admin/reviews' },
     { label: 'Flagged listings', value: flaggedListings, href: '/admin/listings' },
     { label: 'Open disputes', value: openDisputes, href: '/admin/disputes' },
+    { label: 'Pending payouts', value: pendingPayouts, href: '/admin/payouts' },
   ]
 
   return (

@@ -12,11 +12,23 @@ import { StepDots } from '@/components/ui/StepDots'
 
 const STEP_LABELS = ['Delivery', 'Payment', 'Summary', 'Done']
 
-export function OrderClient({ product, seller, offerId }: { product: any; seller: any; offerId?: string }) {
+export function OrderClient({
+  product,
+  seller,
+  offerId,
+  verifyReference,
+  verifyOrderId,
+}: {
+  product: any
+  seller: any
+  offerId?: string
+  verifyReference?: string
+  verifyOrderId?: string
+}) {
   const { user, isSignedIn } = useUser()
   const supabase = useSupabaseClient()
 
-  const [step, setStep] = useState(0)
+  const [step, setStep] = useState(verifyReference ? 3 : 0)
   const [quantity, setQuantity] = useState(1)
   const [address, setAddress] = useState('')
   const [city, setCity] = useState('')
@@ -24,6 +36,32 @@ export function OrderClient({ product, seller, offerId }: { product: any; seller
   const [payment, setPayment] = useState<'platform' | 'direct'>('direct')
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState('')
+
+  const [verifyingPayment, setVerifyingPayment] = useState(!!verifyReference)
+  const [paymentVerified, setPaymentVerified] = useState(false)
+  const [paymentVerifyError, setPaymentVerifyError] = useState('')
+
+  useEffect(() => {
+    async function verify() {
+      if (!verifyReference || !verifyOrderId || !user) return
+      try {
+        const res = await fetch('/api/payments/paystack/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: verifyOrderId, reference: verifyReference }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Payment could not be verified')
+        setPaymentVerified(true)
+      } catch (err: any) {
+        setPaymentVerifyError(err.message ?? 'Payment could not be verified')
+      } finally {
+        setVerifyingPayment(false)
+        setStep(3)
+      }
+    }
+    verify()
+  }, [verifyReference, verifyOrderId, user])
 
   const [offer, setOffer] = useState<any>(null)
   const [showOfferForm, setShowOfferForm] = useState(false)
@@ -106,6 +144,18 @@ export function OrderClient({ product, seller, offerId }: { product: any; seller
 
       if (offer) {
         await supabase.from('offers').update({ resulting_order_id: newOrder.id }).eq('id', offer.id)
+      }
+
+      if (payment === 'platform') {
+        const res = await fetch('/api/payments/paystack/initialize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: newOrder.id }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Could not start payment')
+        window.location.href = data.authorizationUrl
+        return
       }
 
       setStep(3)
@@ -267,7 +317,9 @@ export function OrderClient({ product, seller, offerId }: { product: any; seller
             <div className="flex gap-2.5">
               <Button variant="ghost" size="lg" onClick={() => setStep(1)}>Back</Button>
               <Button variant="primary" size="lg" className="flex-1" disabled={placing} onClick={placeOrder}>
-                {placing ? 'Placing order...' : 'Place order'}
+                {placing
+                  ? payment === 'platform' ? 'Redirecting to payment...' : 'Placing order...'
+                  : payment === 'platform' ? 'Continue to payment' : 'Place order'}
               </Button>
             </div>
           </Card>
@@ -275,12 +327,34 @@ export function OrderClient({ product, seller, offerId }: { product: any; seller
 
         {step === 3 && (
           <Card className="p-7 text-center">
-            <div className="w-12 h-12 rounded-full bg-merqt-success-soft text-merqt-success-dark flex items-center justify-center text-xl mx-auto mb-4">✓</div>
-            <div className="text-[17px] font-semibold mb-1.5">Order placed</div>
-            <div className="text-[13.5px] text-merqt-text-muted mb-5">
-              {seller.business_name} has received your order and will be in touch.
-            </div>
-            <a href="/activity"><Button variant="primary" size="lg">Track in Activity</Button></a>
+            {verifyingPayment ? (
+              <>
+                <div className="text-[17px] font-semibold mb-1.5">Confirming your payment...</div>
+                <p className="text-[13.5px] text-merqt-text-muted">This only takes a moment.</p>
+              </>
+            ) : verifyReference && !paymentVerified ? (
+              <>
+                <div className="w-12 h-12 rounded-full bg-merqt-ochre-soft text-merqt-ochre-dark flex items-center justify-center text-xl mx-auto mb-4">!</div>
+                <div className="text-[17px] font-semibold mb-1.5">We couldn&apos;t confirm your payment</div>
+                <div className="text-[13.5px] text-merqt-text-muted mb-5">
+                  {paymentVerifyError || 'If money left your account, contact support - your order is still saved as pending payment.'}
+                </div>
+                <a href="/activity"><Button variant="primary" size="lg">Go to Activity</Button></a>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 rounded-full bg-merqt-success-soft text-merqt-success-dark flex items-center justify-center text-xl mx-auto mb-4">✓</div>
+                <div className="text-[17px] font-semibold mb-1.5">
+                  {paymentVerified ? 'Payment confirmed' : 'Order placed'}
+                </div>
+                <div className="text-[13.5px] text-merqt-text-muted mb-5">
+                  {paymentVerified
+                    ? `Merqt is holding your payment in escrow. It'll be released to ${seller.business_name} once you confirm you've received your order.`
+                    : `${seller.business_name} has received your order and will be in touch.`}
+                </div>
+                <a href="/activity"><Button variant="primary" size="lg">Track in Activity</Button></a>
+              </>
+            )}
           </Card>
         )}
       </div>

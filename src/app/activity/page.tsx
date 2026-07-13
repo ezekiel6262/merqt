@@ -50,6 +50,7 @@ function ActivityInner() {
 
   const [confirmingCancelId, setConfirmingCancelId] = useState<string | null>(null)
   const [cancelReasonDraft, setCancelReasonDraft] = useState<Record<string, string>>({})
+  const [releasingId, setReleasingId] = useState<string | null>(null)
 
   // Messages
   const [ownUserId, setOwnUserId] = useState<string | null>(null)
@@ -182,6 +183,19 @@ function ActivityInner() {
     }
   }
 
+  async function releasePayment(order: any) {
+    setReleasingId(order.id)
+    try {
+      await supabase
+        .from('orders')
+        .update({ payment_status: 'released', released_at: new Date().toISOString() })
+        .eq('id', order.id)
+      loadActivity()
+    } finally {
+      setReleasingId(null)
+    }
+  }
+
   async function confirmCancel(order: any) {
     const reason = cancelReasonDraft[order.id]
     if (!reason) return
@@ -302,6 +316,26 @@ function ActivityInner() {
 
                     {isCancelled && o.cancel_reason && (
                       <p className="text-[11.5px] text-merqt-text-muted mt-1">Cancellation reason: {o.cancel_reason}</p>
+                    )}
+
+                    {isDelivered && o.payment_status === 'paid' && (
+                      <div className="bg-merqt-success-soft border border-merqt-success rounded p-2.5 mt-2 mb-2">
+                        <p className="text-xs text-merqt-success-dark mb-2">
+                          Merqt is holding this payment in escrow. Confirm once you&apos;ve received your order to release it to {o.seller?.business_name}.
+                        </p>
+                        <Button
+                          variant="primary"
+                          className="w-full"
+                          disabled={releasingId === o.id}
+                          onClick={() => releasePayment(o)}
+                        >
+                          {releasingId === o.id ? 'Releasing...' : 'Confirm received & release payment'}
+                        </Button>
+                      </div>
+                    )}
+
+                    {isDelivered && o.payment_status === 'released' && (
+                      <p className="text-[11.5px] text-merqt-success-dark mt-1 mb-1">Payment released to the seller.</p>
                     )}
 
                     {isDelivered && !hasReview && reviewing !== o.id && (
