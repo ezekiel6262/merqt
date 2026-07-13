@@ -35,6 +35,16 @@ const SERVICE_LABEL: Record<string, string> = {
 
 const CANCEL_REASONS = ['Out of stock', 'Unable to fulfill', 'Buyer unresponsive', 'Other']
 
+// Buyer request flow (after a seller claims one): responded > in_progress > completed
+const REQUEST_FLOW: Record<string, string> = {
+  responded: 'in_progress',
+  in_progress: 'completed',
+}
+const REQUEST_LABEL: Record<string, string> = {
+  responded: 'Mark in progress',
+  in_progress: 'Mark completed',
+}
+
 const STUCK_THRESHOLD_MS = 48 * 60 * 60 * 1000
 
 function isTerminal(status: string) {
@@ -45,6 +55,7 @@ export default function SellerOrdersPage() {
   const { user } = useUser()
   const supabase = useSupabaseClient()
   const [orders, setOrders] = useState<any[]>([])
+  const [buyerRequests, setBuyerRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'products' | 'services'>('all')
   const [nudges, setNudges] = useState<Record<string, string>>({})
@@ -73,11 +84,26 @@ export default function SellerOrdersPage() {
       .order('created_at', { ascending: false })
 
     setOrders(orderRows ?? [])
+
+    const { data: requestRows } = await supabase
+      .from('buyer_requests')
+      .select('*, buyer:users(name)')
+      .eq('responding_seller_id', sellerRow.id)
+      .order('created_at', { ascending: false })
+
+    setBuyerRequests(requestRows ?? [])
     setLoading(false)
     checkStuckOrders(orderRows ?? [])
   }
 
   useEffect(() => { loadOrders() }, [user])
+
+  async function advanceRequestStatus(request: any) {
+    const next = REQUEST_FLOW[request.status]
+    if (!next) return
+    await supabase.from('buyer_requests').update({ status: next }).eq('id', request.id)
+    loadOrders()
+  }
 
   function checkStuckOrders(orderRows: any[]) {
     const now = Date.now()
@@ -274,6 +300,41 @@ export default function SellerOrdersPage() {
             )
           })}
         </div>
+
+        {buyerRequests.length > 0 && (
+          <>
+            <h2 className="font-serif text-lg font-semibold text-merqt-text mt-7 mb-3.5">Requests you're helping with</h2>
+            <div className="flex flex-col gap-3.5">
+              {buyerRequests.map((r) => {
+                const requestActionLabel = REQUEST_LABEL[r.status]
+                const isDone = r.status === 'completed'
+                return (
+                  <Card key={r.id} className="p-4">
+                    <div className="flex items-start justify-between mb-2 gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                          <TypeTag label="Buyer request" kind="service" />
+                          <StatusPill label={r.status} />
+                        </div>
+                        <p className="font-semibold text-sm">{r.description}</p>
+                        <p className="text-xs text-merqt-text-muted">From {r.buyer?.name || 'a buyer'}</p>
+                      </div>
+                      {r.budget && <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(r.budget)}</p>}
+                    </div>
+                    {requestActionLabel && (
+                      <Button variant="primary" className="w-full" onClick={() => advanceRequestStatus(r)}>
+                        {requestActionLabel}
+                      </Button>
+                    )}
+                    {isDone && (
+                      <p className="text-center text-sm text-merqt-success-dark font-semibold">Completed</p>
+                    )}
+                  </Card>
+                )
+              })}
+            </div>
+          </>
+        )}
 
       </div>
     </div>

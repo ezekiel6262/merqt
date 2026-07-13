@@ -134,6 +134,21 @@ export default function DashboardPage() {
           <Link href={`/@${seller.slug}/marketplace`} className="text-[13.5px] font-semibold text-merqt-indigo">View marketplace page →</Link>
         </div>
 
+        <Card className="p-3.5 mb-5">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={!!seller.licensed}
+              onChange={async (e) => {
+                const licensed = e.target.checked
+                setSeller((prev: any) => ({ ...prev, licensed }))
+                await supabase.from('sellers').update({ licensed }).eq('id', seller.id)
+              }}
+            />
+            My business is licensed/registered <span className="text-merqt-text-muted">(shows a Licensed trust badge on your profile)</span>
+          </label>
+        </Card>
+
         {statusMessage && (
           <Card className="bg-merqt-indigo-soft border-merqt-indigo p-3.5 mb-5">
             <p className="text-sm text-merqt-indigo-dark">{statusMessage}</p>

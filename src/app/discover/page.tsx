@@ -11,5 +11,11 @@ export default async function DiscoverPage() {
     .select('*')
     .order('rating', { ascending: false })
 
-  return <DiscoverClient sellers={sellers ?? []} />
+  const { data: requests } = await supabase
+    .from('buyer_requests')
+    .select('*, buyer:users(name)')
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+
+  return <DiscoverClient sellers={sellers ?? []} initialRequests={requests ?? []} />
 }

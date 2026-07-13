@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { computeExtendedBadgeSignals } from '@/lib/sellerStats'
 import { ProfileClient } from './ProfileClient'
 
 export default async function ProfilePage({
@@ -27,5 +28,7 @@ export default async function ProfilePage({
     .eq('seller_id', seller.id)
     .order('created_at', { ascending: false })
 
-  return <ProfileClient seller={seller} reviews={reviews ?? []} />
+  const badgeSignals = await computeExtendedBadgeSignals(seller.id)
+
+  return <ProfileClient seller={seller} reviews={reviews ?? []} badgeSignals={badgeSignals} />
 }

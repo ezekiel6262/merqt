@@ -3,10 +3,12 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
+import { ensureUserRow } from '@/lib/ensureUser'
 import { getInitials } from '@/lib/format'
-import { computeTrustBadges } from '@/lib/badges'
+import { computeTrustBadges, ExtendedBadgeSignals } from '@/lib/badges'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Stat } from '@/components/ui/Stat'
@@ -14,23 +16,81 @@ import { Stat } from '@/components/ui/Stat'
 const STRIPE_BG =
   'repeating-linear-gradient(45deg, oklch(0.92 0.03 265), oklch(0.92 0.03 265) 10px, oklch(0.995 0.004 70) 10px, oklch(0.995 0.004 70) 20px)'
 
-export function ProfileClient({ seller, reviews }: { seller: any; reviews: any[] }) {
+export function ProfileClient({
+  seller,
+  reviews,
+  badgeSignals,
+}: {
+  seller: any
+  reviews: any[]
+  badgeSignals: ExtendedBadgeSignals
+}) {
   const { user, isSignedIn } = useUser()
   const supabase = useSupabaseClient()
+  const router = useRouter()
   const [isOwnProfile, setIsOwnProfile] = useState(false)
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followBusy, setFollowBusy] = useState(false)
+  const [messaging, setMessaging] = useState(false)
 
   useEffect(() => {
-    async function checkOwnership() {
+    async function checkStatus() {
       if (!user) return
       const { data: userRow } = await supabase.from('users').select('id').eq('clerk_id', user.id).single()
       if (!userRow) return
+
       const { data: sellerRow } = await supabase.from('sellers').select('id').eq('user_id', userRow.id).single()
-      if (sellerRow?.id === seller.id) setIsOwnProfile(true)
+      if (sellerRow?.id === seller.id) {
+        setIsOwnProfile(true)
+        return
+      }
+
+      const { data: followRow } = await supabase
+        .from('follows').select('id').eq('follower_id', userRow.id).eq('seller_id', seller.id).single()
+      setIsFollowing(!!followRow)
     }
-    if (isSignedIn) checkOwnership()
+    if (isSignedIn) checkStatus()
   }, [user, isSignedIn])
 
-  const badges = computeTrustBadges(seller)
+  async function toggleFollow() {
+    if (!user) { router.push('/login'); return }
+    setFollowBusy(true)
+    try {
+      const userId = await ensureUserRow(supabase, user)
+      if (isFollowing) {
+        await supabase.from('follows').delete().eq('follower_id', userId).eq('seller_id', seller.id)
+        setIsFollowing(false)
+      } else {
+        await supabase.from('follows').insert({ follower_id: userId, seller_id: seller.id })
+        setIsFollowing(true)
+      }
+    } finally {
+      setFollowBusy(false)
+    }
+  }
+
+  async function messageSeller() {
+    if (!user) { router.push('/login'); return }
+    setMessaging(true)
+    try {
+      const userId = await ensureUserRow(supabase, user)
+      const { data: existing } = await supabase
+        .from('conversations').select('id').eq('buyer_id', userId).eq('seller_id', seller.id).single()
+
+      let conversationId = existing?.id
+      if (!conversationId) {
+        const { data: created, error } = await supabase
+          .from('conversations').insert({ buyer_id: userId, seller_id: seller.id }).select('id').single()
+        if (error) throw error
+        conversationId = created.id
+      }
+      router.push(`/activity?tab=messages&convo=${conversationId}`)
+    } finally {
+      setMessaging(false)
+    }
+  }
+
+  const badges = computeTrustBadges(seller, badgeSignals)
   const waLink = seller.whatsapp
     ? `https://wa.me/${seller.whatsapp.replace(/\D/g, '')}?text=Hi, I found you on Merqt`
     : null
@@ -52,7 +112,15 @@ export function ProfileClient({ seller, reviews }: { seller: any; reviews: any[]
                 </div>
                 <div>
                   <h1 className="font-serif text-2xl font-semibold text-merqt-text leading-tight mb-1">{seller.business_name}</h1>
-                  <div className="text-sm text-merqt-text-muted">{seller.category} · {seller.city}</div>
+                  <div className="text-sm text-merqt-text-muted">
+                    {seller.category} · {seller.city}
+                    {waLink && (
+                      <>
+                        {' · '}
+                        <a href={waLink} target="_blank" rel="noopener noreferrer" className="text-merqt-indigo font-medium">WhatsApp</a>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -62,11 +130,18 @@ export function ProfileClient({ seller, reviews }: { seller: any; reviews: any[]
                     YOUR PUBLIC PROFILE
                   </div>
                 ) : (
-                  waLink && (
-                    <a href={waLink} target="_blank" rel="noopener noreferrer">
-                      <Button variant="ghost">Chat on WhatsApp</Button>
-                    </a>
-                  )
+                  <>
+                    <Button variant="ghost" disabled={messaging} onClick={messageSeller}>
+                      {messaging ? 'Opening...' : 'Message'}
+                    </Button>
+                    <Button
+                      variant={isFollowing ? 'ghost' : 'primary'}
+                      disabled={followBusy}
+                      onClick={toggleFollow}
+                    >
+                      {isFollowing ? 'Following' : 'Follow'}
+                    </Button>
+                  </>
                 )}
                 <Link href={`/@${seller.slug}/marketplace`}>
                   <Button variant="primary">View marketplace</Button>
