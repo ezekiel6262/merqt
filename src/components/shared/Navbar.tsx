@@ -59,7 +59,9 @@ export function Navbar() {
     <header className="bg-merqt-surface border-b border-merqt-border sticky top-0 z-50">
       <div className="max-w-5xl mx-auto px-5 h-14 flex items-center gap-3">
 
-        <Link href="/" className="font-serif text-xl font-semibold text-merqt-indigo flex-shrink-0">
+        <Link href="/" className="flex items-center gap-2 font-serif text-xl font-semibold text-merqt-indigo flex-shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.svg" alt="" width={28} height={28} className="flex-shrink-0" />
           Merqt
         </Link>
 
