@@ -406,6 +406,10 @@ export default function SellerOrdersPage() {
                       </div>
                       {r.budget && <p className="font-mono text-sm font-semibold text-merqt-indigo">{formatNaira(r.budget)}</p>}
                     </div>
+                    {r.image_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={r.image_url} alt="" className="w-full max-h-56 object-cover rounded mb-2.5" />
+                    )}
                     {requestActionLabel && (
                       <Button variant="primary" className="w-full" onClick={() => advanceRequestStatus(r)}>
                         {requestActionLabel}

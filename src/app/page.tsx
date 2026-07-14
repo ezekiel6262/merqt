@@ -5,12 +5,14 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import { CldUploadWidget } from 'next-cloudinary'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
 import { URGENCY_OPTIONS, urgencyClasses, urgencyLabel, respondToRequest } from '@/lib/requests'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Avatar } from '@/components/ui/Avatar'
+import { PostSocialBar } from '@/components/shared/PostSocialBar'
 
 function timeAgoShort(dateStr: string) {
   const hours = Math.floor((Date.now() - new Date(dateStr).getTime()) / (60 * 60 * 1000))
@@ -33,9 +35,13 @@ export default function Home() {
   const [draftCategory, setDraftCategory] = useState('')
   const [draftLocation, setDraftLocation] = useState('')
   const [draftUrgency, setDraftUrgency] = useState<'urgent' | 'this_week' | 'flexible'>('flexible')
+  const [draftImage, setDraftImage] = useState<string | null>(null)
   const [posting, setPosting] = useState(false)
   const [respondingId, setRespondingId] = useState<string | null>(null)
   const [ownUserId, setOwnUserId] = useState<string | null>(null)
+  const [ownSellerId, setOwnSellerId] = useState<string | null>(null)
+  const [followedSellerIds, setFollowedSellerIds] = useState<Set<string>>(new Set())
+  const [followedUserIds, setFollowedUserIds] = useState<Set<string>>(new Set())
 
   async function loadHome() {
     const [{ data: requestRows }, { data: postRows }, { data: sellerRows }] = await Promise.all([
@@ -55,10 +61,43 @@ export default function Home() {
     async function loadOwnUserId() {
       if (!user) return
       const { data } = await supabase.from('users').select('id').eq('clerk_id', user.id).single()
-      if (data) setOwnUserId(data.id)
+      if (!data) return
+      setOwnUserId(data.id)
+
+      const { data: sellerRow } = await supabase.from('sellers').select('id').eq('user_id', data.id).single()
+      setOwnSellerId(sellerRow?.id ?? null)
+
+      const { data: followRows } = await supabase
+        .from('follows').select('seller_id, followee_user_id').eq('follower_id', data.id)
+      setFollowedSellerIds(new Set((followRows ?? []).map((f: any) => f.seller_id).filter(Boolean)))
+      setFollowedUserIds(new Set((followRows ?? []).map((f: any) => f.followee_user_id).filter(Boolean)))
     }
     loadOwnUserId()
   }, [user])
+
+  async function toggleFollowSeller(sellerId: string) {
+    if (!user) { router.push('/login'); return }
+    const userId = await ensureUserRow(supabase, user)
+    if (followedSellerIds.has(sellerId)) {
+      await supabase.from('follows').delete().eq('follower_id', userId).eq('seller_id', sellerId)
+      setFollowedSellerIds((prev) => { const next = new Set(prev); next.delete(sellerId); return next })
+    } else {
+      await supabase.from('follows').insert({ follower_id: userId, seller_id: sellerId })
+      setFollowedSellerIds((prev) => new Set(prev).add(sellerId))
+    }
+  }
+
+  async function toggleFollowUser(followeeUserId: string) {
+    if (!user) { router.push('/login'); return }
+    const userId = await ensureUserRow(supabase, user)
+    if (followedUserIds.has(followeeUserId)) {
+      await supabase.from('follows').delete().eq('follower_id', userId).eq('followee_user_id', followeeUserId)
+      setFollowedUserIds((prev) => { const next = new Set(prev); next.delete(followeeUserId); return next })
+    } else {
+      await supabase.from('follows').insert({ follower_id: userId, followee_user_id: followeeUserId })
+      setFollowedUserIds((prev) => new Set(prev).add(followeeUserId))
+    }
+  }
 
   async function postRequest() {
     if (!user) { router.push('/login'); return }
@@ -72,8 +111,9 @@ export default function Home() {
         category: draftCategory || null,
         location: draftLocation || null,
         urgency: draftUrgency,
+        image_url: draftImage,
       })
-      setDraftDesc(''); setDraftCategory(''); setDraftLocation(''); setDraftUrgency('flexible')
+      setDraftDesc(''); setDraftCategory(''); setDraftLocation(''); setDraftUrgency('flexible'); setDraftImage(null)
       loadHome()
     } finally {
       setPosting(false)
@@ -130,6 +170,10 @@ export default function Home() {
                   </span>
                 </div>
                 <p className="text-[12.5px] leading-relaxed mb-2">{r.description}</p>
+                {r.image_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={r.image_url} alt="" className="w-full max-h-48 object-cover rounded mb-2" />
+                )}
                 <div className="flex items-center gap-2">
                   {r.category && (
                     <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">{r.category}</span>
@@ -164,6 +208,23 @@ export default function Home() {
               <input value={draftLocation} onChange={(e) => setDraftLocation(e.target.value)} placeholder="Location"
                 className="flex-1 min-w-[100px] border border-merqt-border rounded px-2.5 py-2 text-[13px] outline-none focus:border-merqt-indigo" />
             </div>
+            <div className="flex items-center gap-2 flex-wrap mb-2.5">
+              <CldUploadWidget uploadPreset="merqt_products" onSuccess={(result: any) => setDraftImage(result.info.secure_url)}>
+                {({ open }) => (
+                  <button
+                    type="button"
+                    onClick={() => open()}
+                    className="border border-dashed border-merqt-border text-merqt-text-muted rounded px-2.5 py-1.5 text-xs font-semibold"
+                  >
+                    {draftImage ? '✓ Photo added' : '+ Photo'}
+                  </button>
+                )}
+              </CldUploadWidget>
+              {draftImage && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={draftImage} alt="" className="w-9 h-9 object-cover rounded border border-merqt-border" />
+              )}
+            </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               {URGENCY_OPTIONS.map((u) => (
                 <button
@@ -182,7 +243,7 @@ export default function Home() {
           </Card>
 
           <div className="flex justify-between items-baseline mb-3">
-            <h3 className="font-serif text-base font-semibold text-merqt-text">Network feed</h3>
+            <h3 className="font-serif text-base font-semibold text-merqt-text">The Weave</h3>
             <Link href="/network" className="text-xs font-semibold text-merqt-indigo">See all</Link>
           </div>
           <div className="flex flex-col gap-3.5">
@@ -205,6 +266,8 @@ export default function Home() {
                   shape={isSeller ? 'square' : 'circle'}
                 />
               )
+              const isOwnPost = isSeller ? post.seller_id === ownSellerId : post.author_user_id === ownUserId
+              const isFollowingAuthor = isSeller ? followedSellerIds.has(post.seller_id) : followedUserIds.has(post.author_user_id)
               return (
                 <Card key={post.id} className="p-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -225,9 +288,19 @@ export default function Home() {
                       </span>
                     )}
                     <span className="text-xs text-merqt-text-muted">{timeAgoShort(post.created_at)}</span>
+                    <div className="flex-1" />
+                    {!isOwnPost && (isSeller ? post.seller_id : post.author_user_id) && (
+                      <button
+                        onClick={() => isSeller ? toggleFollowSeller(post.seller_id) : toggleFollowUser(post.author_user_id)}
+                        className={`rounded px-2.5 py-1 text-[11px] font-semibold flex-shrink-0 ${isFollowingAuthor ? 'border border-merqt-border text-merqt-text-muted' : 'bg-merqt-indigo text-merqt-surface'}`}
+                      >
+                        {isFollowingAuthor ? 'Following' : 'Follow'}
+                      </button>
+                    )}
                   </div>
                   <p className="text-sm leading-relaxed mb-2">{post.text}</p>
                   {post.image_url && <img src={post.image_url} alt="" className="w-full rounded object-cover max-h-72" />}
+                  <PostSocialBar postId={post.id} />
                 </Card>
               )
             })}

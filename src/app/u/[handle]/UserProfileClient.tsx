@@ -3,8 +3,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { getInitials, timeAgo } from '@/lib/format'
+import { useSupabaseClient } from '@/lib/supabase/client'
+import { ensureUserRow } from '@/lib/ensureUser'
 import { Button } from '@/components/ui/Button'
 
 const STRIPE_BG =
@@ -18,11 +21,44 @@ export function UserProfileClient({
   seller: { slug: string; business_name: string } | null
 }) {
   const { user } = useUser()
+  const supabase = useSupabaseClient()
+  const router = useRouter()
   const [isOwnProfile, setIsOwnProfile] = useState(false)
+  const [following, setFollowing] = useState(false)
+  const [followLoading, setFollowLoading] = useState(false)
 
   useEffect(() => {
     if (user && user.id === profileUser.clerk_id) setIsOwnProfile(true)
   }, [user, profileUser.clerk_id])
+
+  useEffect(() => {
+    async function checkFollowing() {
+      if (!user || user.id === profileUser.clerk_id) return
+      const { data: viewerRow } = await supabase.from('users').select('id').eq('clerk_id', user.id).single()
+      if (!viewerRow) return
+      const { data } = await supabase
+        .from('follows').select('id').eq('follower_id', viewerRow.id).eq('followee_user_id', profileUser.id).single()
+      setFollowing(!!data)
+    }
+    checkFollowing()
+  }, [user, profileUser.id, profileUser.clerk_id, supabase])
+
+  async function toggleFollow() {
+    if (!user) { router.push('/login'); return }
+    setFollowLoading(true)
+    try {
+      const viewerId = await ensureUserRow(supabase, user)
+      if (following) {
+        await supabase.from('follows').delete().eq('follower_id', viewerId).eq('followee_user_id', profileUser.id)
+        setFollowing(false)
+      } else {
+        await supabase.from('follows').insert({ follower_id: viewerId, followee_user_id: profileUser.id })
+        setFollowing(true)
+      }
+    } finally {
+      setFollowLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-merqt-bg py-8 px-5">
@@ -67,7 +103,11 @@ export function UserProfileClient({
                   <Link href="/settings/profile">
                     <Button variant="ghost">Edit profile</Button>
                   </Link>
-                ) : null}
+                ) : (
+                  <Button variant={following ? 'ghost' : 'primary'} disabled={followLoading} onClick={toggleFollow}>
+                    {followLoading ? '...' : following ? 'Following' : 'Follow'}
+                  </Button>
+                )}
                 {seller && (
                   <Link href={`/@${seller.slug}`}>
                     <Button variant="primary">View business profile</Button>

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import { CldUploadWidget } from 'next-cloudinary'
 import { CATEGORIES, CITIES } from '@/lib/constants'
 import { formatNaira } from '@/lib/format'
 import { computeTrustBadges } from '@/lib/badges'
@@ -85,6 +86,7 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
   const [draftCategory, setDraftCategory] = useState('')
   const [draftLocation, setDraftLocation] = useState('')
   const [draftBudget, setDraftBudget] = useState('')
+  const [draftImage, setDraftImage] = useState<string | null>(null)
   const [draftUrgency, setDraftUrgency] = useState<'urgent' | 'this_week' | 'flexible'>('flexible')
   const [posting, setPosting] = useState(false)
   const [respondingId, setRespondingId] = useState<string | null>(null)
@@ -108,8 +110,9 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
         location: draftLocation || null,
         budget: draftBudget ? parseFloat(draftBudget) : null,
         urgency: draftUrgency,
+        image_url: draftImage,
       })
-      setDraftDesc(''); setDraftCategory(''); setDraftLocation(''); setDraftBudget(''); setDraftUrgency('flexible')
+      setDraftDesc(''); setDraftCategory(''); setDraftLocation(''); setDraftBudget(''); setDraftImage(null); setDraftUrgency('flexible')
       reloadRequests()
     } finally {
       setPosting(false)
@@ -276,6 +279,23 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
                   className="flex-1 min-w-[160px] border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo"
                 />
               </div>
+              <div className="flex items-center gap-2 flex-wrap mb-3">
+                <CldUploadWidget uploadPreset="merqt_products" onSuccess={(result: any) => setDraftImage(result.info.secure_url)}>
+                  {({ open }) => (
+                    <button
+                      type="button"
+                      onClick={() => open()}
+                      className="border border-dashed border-merqt-border text-merqt-text-muted rounded px-2.5 py-1.5 text-xs font-semibold"
+                    >
+                      {draftImage ? '✓ Photo added' : '+ Photo'}
+                    </button>
+                  )}
+                </CldUploadWidget>
+                {draftImage && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={draftImage} alt="" className="w-9 h-9 object-cover rounded border border-merqt-border" />
+                )}
+              </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-merqt-text-muted mr-1">Timeframe:</span>
                 {URGENCY_OPTIONS.map((u) => (
@@ -329,6 +349,10 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
                     </span>
                   </div>
                   <p className="text-[13.5px] leading-relaxed mb-2.5">{r.description}</p>
+                  {r.image_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.image_url} alt="" className="w-full max-h-64 object-cover rounded mb-2.5" />
+                  )}
                   <div className="flex items-center gap-2.5 flex-wrap">
                     {r.category && (
                       <span className="text-[11px] font-semibold px-2.5 py-1 rounded bg-merqt-indigo-soft text-merqt-indigo-dark">{r.category}</span>

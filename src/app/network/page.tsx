@@ -11,6 +11,7 @@ import { ensureUserRow } from '@/lib/ensureUser'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Avatar } from '@/components/ui/Avatar'
+import { PostSocialBar } from '@/components/shared/PostSocialBar'
 
 function timeAgoShort(dateStr: string) {
   const ms = Date.now() - new Date(dateStr).getTime()
@@ -30,11 +31,16 @@ export default function NetworkPage() {
   const router = useRouter()
 
   const [loading, setLoading] = useState(true)
+  const [ownUserId, setOwnUserId] = useState<string | null>(null)
   const [ownSellerId, setOwnSellerId] = useState<string | null>(null)
   const [following, setFollowing] = useState<any[]>([])
+  const [followingPeople, setFollowingPeople] = useState<any[]>([])
   const [recommended, setRecommended] = useState<any[]>([])
   const [posts, setPosts] = useState<any[]>([])
   const [followedSellerIds, setFollowedSellerIds] = useState<Set<string>>(new Set())
+  const [followedUserIds, setFollowedUserIds] = useState<Set<string>>(new Set())
+  const [networkSellerIds, setNetworkSellerIds] = useState<Set<string>>(new Set())
+  const [networkAuthorIds, setNetworkAuthorIds] = useState<Set<string>>(new Set())
 
   const [draftText, setDraftText] = useState('')
   const [draftImage, setDraftImage] = useState<string | null>(null)
@@ -45,7 +51,7 @@ export default function NetworkPage() {
       .from('posts')
       .select('*, author:users(name, avatar_url, slug), seller:sellers(business_name, slug, logo_url)')
       .order('created_at', { ascending: false })
-      .limit(30)
+      .limit(150)
     setPosts(postRows ?? [])
   }
 
@@ -54,15 +60,40 @@ export default function NetworkPage() {
 
     const { data: userRow } = await supabase.from('users').select('id').eq('clerk_id', user.id).single()
     if (!userRow) { setLoading(false); return }
+    setOwnUserId(userRow.id)
 
     const { data: sellerRow } = await supabase.from('sellers').select('id').eq('user_id', userRow.id).single()
     setOwnSellerId(sellerRow?.id ?? null)
 
     const { data: followRows } = await supabase
-      .from('follows').select('seller_id, sellers(id, business_name, slug, category, city, logo_url)').eq('follower_id', userRow.id)
+      .from('follows')
+      .select('seller_id, followee_user_id, sellers(id, business_name, slug, category, city, logo_url), followee:users!followee_user_id(id, name, slug, avatar_url)')
+      .eq('follower_id', userRow.id)
     const followedSellers = (followRows ?? []).map((f: any) => f.sellers).filter(Boolean)
+    const followedPeople = (followRows ?? []).map((f: any) => f.followee).filter(Boolean)
     setFollowing(followedSellers)
+    setFollowingPeople(followedPeople)
     setFollowedSellerIds(new Set(followedSellers.map((s: any) => s.id)))
+    setFollowedUserIds(new Set(followedPeople.map((u: any) => u.id)))
+
+    // Who follows me back (as a person, and as my business if I have one)
+    let followerUserIds: string[] = []
+    const { data: followerOfMeRows } = await supabase.from('follows').select('follower_id').eq('followee_user_id', userRow.id)
+    followerUserIds = (followerOfMeRows ?? []).map((r: any) => r.follower_id)
+    if (sellerRow) {
+      const { data: followerOfBizRows } = await supabase.from('follows').select('follower_id').eq('seller_id', sellerRow.id)
+      followerUserIds = [...followerUserIds, ...(followerOfBizRows ?? []).map((r: any) => r.follower_id)]
+    }
+    followerUserIds = Array.from(new Set(followerUserIds))
+
+    const relevantUserIds = Array.from(new Set([...followedPeople.map((u: any) => u.id), ...followerUserIds]))
+    let relevantSellerIds = followedSellers.map((s: any) => s.id)
+    if (relevantUserIds.length > 0) {
+      const { data: theirSellers } = await supabase.from('sellers').select('id, user_id').in('user_id', relevantUserIds)
+      relevantSellerIds = Array.from(new Set([...relevantSellerIds, ...(theirSellers ?? []).map((s: any) => s.id)]))
+    }
+    setNetworkSellerIds(new Set(relevantSellerIds))
+    setNetworkAuthorIds(new Set(relevantUserIds))
 
     const excludeIds = [...followedSellers.map((s: any) => s.id), sellerRow?.id].filter(Boolean)
     const { data: recRows } = await supabase
@@ -80,6 +111,11 @@ export default function NetworkPage() {
     loadPersonal()
   }, [user])
 
+  const networkPosts = posts.filter((post) =>
+    (post.seller_id && networkSellerIds.has(post.seller_id)) ||
+    (post.author_user_id && networkAuthorIds.has(post.author_user_id))
+  )
+
   async function toggleFollow(sellerId: string) {
     if (!user) { router.push('/login'); return }
     const userId = await ensureUserRow(supabase, user)
@@ -87,6 +123,17 @@ export default function NetworkPage() {
       await supabase.from('follows').delete().eq('follower_id', userId).eq('seller_id', sellerId)
     } else {
       await supabase.from('follows').insert({ follower_id: userId, seller_id: sellerId })
+    }
+    loadPersonal()
+  }
+
+  async function toggleFollowUser(followeeUserId: string) {
+    if (!user) { router.push('/login'); return }
+    const userId = await ensureUserRow(supabase, user)
+    if (followedUserIds.has(followeeUserId)) {
+      await supabase.from('follows').delete().eq('follower_id', userId).eq('followee_user_id', followeeUserId)
+    } else {
+      await supabase.from('follows').insert({ follower_id: userId, followee_user_id: followeeUserId })
     }
     loadPersonal()
   }
@@ -120,9 +167,9 @@ export default function NetworkPage() {
         <div>
           <h3 className="font-serif text-base font-semibold text-merqt-text mb-3">Following</h3>
           {!isSignedIn ? (
-            <p className="text-xs text-merqt-text-muted leading-relaxed">Sign in to follow sellers and see their updates here.</p>
-          ) : following.length === 0 ? (
-            <p className="text-xs text-merqt-text-muted leading-relaxed">Follow a seller from their profile to see their marketplace and service updates here.</p>
+            <p className="text-xs text-merqt-text-muted leading-relaxed">Sign in to follow businesses and people, and see their updates here.</p>
+          ) : following.length === 0 && followingPeople.length === 0 ? (
+            <p className="text-xs text-merqt-text-muted leading-relaxed">Follow a business or a person from their profile to see their updates here.</p>
           ) : (
             <div className="flex flex-col gap-2.5">
               {following.map((s) => (
@@ -149,13 +196,29 @@ export default function NetworkPage() {
                   </div>
                 </Card>
               ))}
+              {followingPeople.map((u) => (
+                <Card key={u.id} className="p-3">
+                  <Link href={`/u/${u.slug}`} className="flex gap-2.5 items-center mb-2">
+                    <Avatar src={u.avatar_url} name={u.name} size={44} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-semibold truncate">{u.name}</div>
+                    </div>
+                  </Link>
+                  <button
+                    onClick={() => toggleFollowUser(u.id)}
+                    className="w-full bg-merqt-bg border border-merqt-border text-merqt-text-muted rounded px-2.5 py-1.5 text-[11.5px] font-semibold"
+                  >
+                    Unfollow
+                  </button>
+                </Card>
+              ))}
             </div>
           )}
         </div>
 
         {/* Feed */}
         <div>
-          <h1 className="font-serif text-2xl font-semibold text-merqt-text mb-5">Feed</h1>
+          <h1 className="font-serif text-2xl font-semibold text-merqt-text mb-5">Your network</h1>
 
           {isSignedIn && (
             <Card className="p-4 mb-4">
@@ -189,12 +252,16 @@ export default function NetworkPage() {
           )}
 
           <div className="flex flex-col gap-3.5">
-            {posts.length === 0 && (
+            {networkPosts.length === 0 && (
               <Card className="p-8 text-center">
-                <p className="text-sm text-merqt-text-muted">No posts yet. Be the first to share something.</p>
+                <p className="text-sm text-merqt-text-muted">
+                  {isSignedIn
+                    ? 'Nothing here yet. Follow businesses or people (or wait for them to follow you) to see their updates in your network.'
+                    : 'Sign in and follow businesses or people to see their updates here.'}
+                </p>
               </Card>
             )}
-            {posts.map((post) => {
+            {networkPosts.map((post) => {
               const isSeller = !!post.seller_id
               const authorName = isSeller ? post.seller?.business_name : post.author?.name || 'Buyer'
               const profileHref = isSeller
@@ -242,7 +309,7 @@ export default function NetworkPage() {
                         </div>
                       </div>
                     )}
-                    {isSeller && post.seller?.id && (
+                    {isSeller && post.seller_id && post.seller_id !== ownSellerId && (
                       <button
                         onClick={() => toggleFollow(post.seller_id)}
                         className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${followedSellerIds.has(post.seller_id) ? 'border border-merqt-border text-merqt-text-muted' : 'bg-merqt-indigo text-merqt-surface'}`}
@@ -250,11 +317,20 @@ export default function NetworkPage() {
                         {followedSellerIds.has(post.seller_id) ? 'Following' : 'Follow'}
                       </button>
                     )}
+                    {!isSeller && post.author_user_id && post.author_user_id !== ownUserId && (
+                      <button
+                        onClick={() => toggleFollowUser(post.author_user_id)}
+                        className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${followedUserIds.has(post.author_user_id) ? 'border border-merqt-border text-merqt-text-muted' : 'bg-merqt-indigo text-merqt-surface'}`}
+                      >
+                        {followedUserIds.has(post.author_user_id) ? 'Following' : 'Follow'}
+                      </button>
+                    )}
                   </div>
                   <p className="text-sm leading-relaxed mb-2.5">{post.text}</p>
                   {post.image_url && (
                     <img src={post.image_url} alt="" className="w-full rounded object-cover max-h-96" />
                   )}
+                  <PostSocialBar postId={post.id} />
                 </Card>
               )
             })}

@@ -7,6 +7,8 @@ import { useUser } from '@clerk/nextjs'
 import { useEffect, useState } from 'react'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ProfileMenu } from './ProfileMenu'
+import { NotificationBell } from './NotificationBell'
+import { HeaderSearch } from './HeaderSearch'
 
 export function Navbar() {
   const pathname = usePathname()
@@ -14,6 +16,7 @@ export function Navbar() {
   const [isSeller, setIsSeller] = useState(false)
   const [canAddBusiness, setCanAddBusiness] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [ownUserId, setOwnUserId] = useState<string | null>(null)
   const [profile, setProfile] = useState<{ name: string; avatarUrl: string; slug: string | null }>({
     name: '', avatarUrl: '', slug: null,
   })
@@ -26,6 +29,7 @@ export function Navbar() {
     if (!userRow) return
 
     setProfile({ name: userRow.name ?? '', avatarUrl: userRow.avatar_url ?? '', slug: userRow.slug ?? null })
+    setOwnUserId(userRow.id)
 
     const { data: sellerRow } = await supabase
       .from('sellers').select('id').eq('user_id', userRow.id).single()
@@ -81,10 +85,12 @@ export function Navbar() {
         <Link href="/" className="flex items-center gap-2 font-serif text-xl font-semibold text-merqt-indigo flex-shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-mark.svg" alt="" width={28} height={28} className="flex-shrink-0" />
-          Merqt
+          <span className="hidden sm:inline">Merqt</span>
         </Link>
 
-        <div className="flex-1" />
+        <HeaderSearch className="flex-1 min-w-0 sm:max-w-xs" />
+
+        {isSignedIn && <NotificationBell userId={ownUserId} />}
 
         <nav className="hidden md:flex items-center gap-0.5">
           <Link href="/" className={linkClass('/')}>Home</Link>
