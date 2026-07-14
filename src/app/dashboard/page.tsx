@@ -38,6 +38,8 @@ export default function DashboardPage() {
   const [bizSaving, setBizSaving] = useState(false)
   const [bizError, setBizError] = useState('')
   const [bizSaved, setBizSaved] = useState(false)
+  const [editingBiz, setEditingBiz] = useState(false)
+  const [showEditConsent, setShowEditConsent] = useState(false)
 
   function cooldownDaysLeft(changedAt: string | null | undefined): number {
     if (!changedAt) return 0
@@ -65,11 +67,19 @@ export default function DashboardPage() {
       }
       await loadData()
       setBizSaved(true)
+      setEditingBiz(false)
     } catch (err: any) {
       setBizError(err.message ?? 'Something went wrong')
     } finally {
       setBizSaving(false)
     }
+  }
+
+  function cancelEditBiz() {
+    setBizName(seller?.business_name ?? '')
+    setBizSlug(seller?.slug ?? '')
+    setBizError('')
+    setEditingBiz(false)
   }
 
   async function loadData() {
@@ -223,7 +233,8 @@ export default function DashboardPage() {
               </div>
             )}
             <div>
-              <h1 className="font-serif text-2xl font-semibold text-merqt-text leading-tight">Your dashboard</h1>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-merqt-text-muted">Dashboard</p>
+              <h1 className="font-serif text-2xl font-semibold text-merqt-text leading-tight">{seller.business_name}</h1>
               <CldUploadWidget
                 uploadPreset="merqt_products"
                 onSuccess={async (result: any) => {
@@ -244,48 +255,105 @@ export default function DashboardPage() {
         </div>
 
         <Card className="p-3.5 mb-5 space-y-3">
-          <div className="text-sm font-semibold">Business profile</div>
-          <div>
-            <label className="block text-xs font-semibold mb-1">Business name</label>
-            <input
-              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo disabled:bg-merqt-bg disabled:text-merqt-text-muted"
-              value={bizName}
-              onChange={(e) => setBizName(e.target.value)}
-              disabled={bizNameDaysLeft > 0}
-            />
-            {bizNameDaysLeft > 0 && (
-              <p className="text-xs text-merqt-text-muted mt-1">
-                To help prevent impersonation, you can change your business name once every 30 days
-                (and not while an order is active or disputed). You can change it again in {bizNameDaysLeft} day{bizNameDaysLeft === 1 ? '' : 's'}.
-              </p>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold">Business profile</div>
+            {!editingBiz && (
+              <button
+                type="button"
+                onClick={() => setShowEditConsent(true)}
+                className="text-xs font-semibold text-merqt-indigo"
+              >
+                Edit
+              </button>
             )}
           </div>
-          <div>
-            <label className="block text-xs font-semibold mb-1">Business link</label>
-            <input
-              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo disabled:bg-merqt-bg disabled:text-merqt-text-muted"
-              value={bizSlug}
-              onChange={(e) => setBizSlug(e.target.value)}
-              disabled={bizSlugDaysLeft > 0}
-            />
-            {bizSlug.trim() && <p className="text-xs text-merqt-text-muted mt-1">Your link: merqt.com/@{makeSlug(bizSlug)}</p>}
-            {bizSlugDaysLeft > 0 && (
-              <p className="text-xs text-merqt-text-muted mt-1">
-                You can change your business link again in {bizSlugDaysLeft} day{bizSlugDaysLeft === 1 ? '' : 's'}.
-              </p>
-            )}
-          </div>
-          {bizError && <p className="text-xs text-merqt-ochre-dark">{bizError}</p>}
-          {bizSaved && !bizError && <p className="text-xs text-merqt-success-dark">Saved.</p>}
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={bizSaving || !bizName.trim() || (bizName === seller.business_name && bizSlug === seller.slug)}
-            onClick={saveBusinessProfile}
-          >
-            {bizSaving ? 'Saving...' : 'Save changes'}
-          </Button>
+
+          {!editingBiz ? (
+            <div className="text-sm">
+              <p className="font-semibold">{seller.business_name}</p>
+              {seller.slug && <p className="text-xs text-merqt-text-muted mt-0.5">merqt.com/@{seller.slug}</p>}
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-semibold mb-1">Business name</label>
+                <input
+                  className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo disabled:bg-merqt-bg disabled:text-merqt-text-muted"
+                  value={bizName}
+                  onChange={(e) => setBizName(e.target.value)}
+                  disabled={bizNameDaysLeft > 0}
+                />
+                {bizNameDaysLeft > 0 && (
+                  <p className="text-xs text-merqt-text-muted mt-1">
+                    To help prevent impersonation, you can change your business name once every 30 days
+                    (and not while an order is active or disputed). You can change it again in {bizNameDaysLeft} day{bizNameDaysLeft === 1 ? '' : 's'}.
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1">Business link</label>
+                <input
+                  className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo disabled:bg-merqt-bg disabled:text-merqt-text-muted"
+                  value={bizSlug}
+                  onChange={(e) => setBizSlug(e.target.value)}
+                  disabled={bizSlugDaysLeft > 0}
+                />
+                {bizSlug.trim() && <p className="text-xs text-merqt-text-muted mt-1">Your link: merqt.com/@{makeSlug(bizSlug)}</p>}
+                {bizSlugDaysLeft > 0 && (
+                  <p className="text-xs text-merqt-text-muted mt-1">
+                    You can change your business link again in {bizSlugDaysLeft} day{bizSlugDaysLeft === 1 ? '' : 's'}.
+                  </p>
+                )}
+              </div>
+              {bizError && <p className="text-xs text-merqt-ochre-dark">{bizError}</p>}
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" disabled={bizSaving} onClick={cancelEditBiz}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={bizSaving || !bizName.trim() || (bizName === seller.business_name && bizSlug === seller.slug)}
+                  onClick={saveBusinessProfile}
+                >
+                  {bizSaving ? 'Saving...' : 'Save changes'}
+                </Button>
+              </div>
+            </>
+          )}
+          {!editingBiz && bizSaved && !bizError && <p className="text-xs text-merqt-success-dark">Saved.</p>}
         </Card>
+
+        {showEditConsent && (
+          <div
+            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+            onClick={() => setShowEditConsent(false)}
+          >
+            <div
+              className="bg-merqt-surface border border-merqt-border rounded-card w-full max-w-sm p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="font-serif text-lg font-semibold text-merqt-text mb-2">Edit your business profile?</h2>
+              <p className="text-sm text-merqt-text-muted mb-4 leading-relaxed">
+                Your business name and link can only be changed once every 30 days, and not while you have
+                an active order or an open dispute. Buyers may see a &quot;formerly known as&quot; note on your
+                profile for 14 days after a change.
+              </p>
+              <div className="flex gap-2">
+                <Button variant="ghost" className="flex-1" onClick={() => setShowEditConsent(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-1"
+                  onClick={() => { setShowEditConsent(false); setEditingBiz(true) }}
+                >
+                  Continue
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-5">
           <MetricCard value={seller.order_count} label="Orders" />
@@ -295,7 +363,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex gap-4 mb-6">
-          <Link href={`/@${seller.slug}`} className="text-[13.5px] font-semibold text-merqt-indigo">View public profile →</Link>
+          <Link href={`/@${seller.slug}`} className="text-[13.5px] font-semibold text-merqt-indigo">View Merqt profile →</Link>
           <Link href={`/@${seller.slug}/marketplace`} className="text-[13.5px] font-semibold text-merqt-indigo">View marketplace page →</Link>
         </div>
 

@@ -49,7 +49,7 @@ export default function NetworkPage() {
   async function loadFeed() {
     const { data: postRows } = await supabase
       .from('posts')
-      .select('*, author:users(name, avatar_url, slug), seller:sellers(business_name, slug, logo_url)')
+      .select('*, author:users(name, avatar_url, slug), seller:sellers(business_name, slug, logo_url), original:posts!repost_of_post_id(*, author:users(name, avatar_url, slug), seller:sellers(business_name, slug, logo_url))')
       .order('created_at', { ascending: false })
       .limit(150)
     setPosts(postRows ?? [])
@@ -262,14 +262,16 @@ export default function NetworkPage() {
               </Card>
             )}
             {networkPosts.map((post) => {
-              const isSeller = !!post.seller_id
-              const authorName = isSeller ? post.seller?.business_name : post.author?.name || 'Buyer'
+              const isRepost = !!post.repost_of_post_id && !!post.original
+              const displayPost = isRepost ? post.original : post
+              const isSeller = !!displayPost.seller_id
+              const authorName = isSeller ? displayPost.seller?.business_name : displayPost.author?.name || 'Buyer'
               const profileHref = isSeller
-                ? post.seller?.slug ? `/@${post.seller.slug}` : null
-                : post.author?.slug ? `/u/${post.author.slug}` : null
+                ? displayPost.seller?.slug ? `/@${displayPost.seller.slug}` : null
+                : displayPost.author?.slug ? `/u/${displayPost.author.slug}` : null
               const authorAvatar = (
                 <Avatar
-                  src={isSeller ? post.seller?.logo_url : post.author?.avatar_url}
+                  src={isSeller ? displayPost.seller?.logo_url : displayPost.author?.avatar_url}
                   name={authorName}
                   size={36}
                   shape={isSeller ? 'square' : 'circle'}
@@ -277,6 +279,15 @@ export default function NetworkPage() {
               )
               return (
                 <Card key={post.id} className="p-4">
+                  {isRepost && (
+                    <p className="text-xs text-merqt-text-muted mb-2 flex items-center gap-1.5">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 2 21 6l-4 4" /><path d="M3 11V9a2 2 0 0 1 2-2h16" />
+                        <path d="M7 22 3 18l4-4" /><path d="M21 13v2a2 2 0 0 1-2 2H3" />
+                      </svg>
+                      {post.author?.name || 'Someone'} reposted
+                    </p>
+                  )}
                   <div className="flex justify-between items-start mb-2.5">
                     {profileHref ? (
                       <Link href={profileHref} className="flex items-center gap-2.5">
@@ -290,7 +301,7 @@ export default function NetworkPage() {
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-merqt-text-muted">{timeAgoShort(post.created_at)}</div>
+                          <div className="text-xs text-merqt-text-muted">{timeAgoShort(displayPost.created_at)}</div>
                         </div>
                       </Link>
                     ) : (
@@ -305,32 +316,32 @@ export default function NetworkPage() {
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-merqt-text-muted">{timeAgoShort(post.created_at)}</div>
+                          <div className="text-xs text-merqt-text-muted">{timeAgoShort(displayPost.created_at)}</div>
                         </div>
                       </div>
                     )}
-                    {isSeller && post.seller_id && post.seller_id !== ownSellerId && (
+                    {isSeller && displayPost.seller_id && displayPost.seller_id !== ownSellerId && (
                       <button
-                        onClick={() => toggleFollow(post.seller_id)}
-                        className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${followedSellerIds.has(post.seller_id) ? 'border border-merqt-border text-merqt-text-muted' : 'bg-merqt-indigo text-merqt-surface'}`}
+                        onClick={() => toggleFollow(displayPost.seller_id)}
+                        className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${followedSellerIds.has(displayPost.seller_id) ? 'border border-merqt-border text-merqt-text-muted' : 'bg-merqt-indigo text-merqt-surface'}`}
                       >
-                        {followedSellerIds.has(post.seller_id) ? 'Following' : 'Follow'}
+                        {followedSellerIds.has(displayPost.seller_id) ? 'Following' : 'Follow'}
                       </button>
                     )}
-                    {!isSeller && post.author_user_id && post.author_user_id !== ownUserId && (
+                    {!isSeller && displayPost.author_user_id && displayPost.author_user_id !== ownUserId && (
                       <button
-                        onClick={() => toggleFollowUser(post.author_user_id)}
-                        className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${followedUserIds.has(post.author_user_id) ? 'border border-merqt-border text-merqt-text-muted' : 'bg-merqt-indigo text-merqt-surface'}`}
+                        onClick={() => toggleFollowUser(displayPost.author_user_id)}
+                        className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${followedUserIds.has(displayPost.author_user_id) ? 'border border-merqt-border text-merqt-text-muted' : 'bg-merqt-indigo text-merqt-surface'}`}
                       >
-                        {followedUserIds.has(post.author_user_id) ? 'Following' : 'Follow'}
+                        {followedUserIds.has(displayPost.author_user_id) ? 'Following' : 'Follow'}
                       </button>
                     )}
                   </div>
-                  <p className="text-sm leading-relaxed mb-2.5">{post.text}</p>
-                  {post.image_url && (
-                    <img src={post.image_url} alt="" className="w-full rounded object-cover max-h-96" />
+                  <p className="text-sm leading-relaxed mb-2.5">{displayPost.text}</p>
+                  {displayPost.image_url && (
+                    <img src={displayPost.image_url} alt="" className="w-full rounded object-cover max-h-96" />
                   )}
-                  <PostSocialBar postId={post.id} />
+                  <PostSocialBar postId={displayPost.id} shareUrl="/network" onReposted={loadFeed} />
                 </Card>
               )
             })}

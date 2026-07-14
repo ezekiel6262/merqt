@@ -133,7 +133,7 @@ export function ProfileClient({
               <div className="flex gap-2.5 items-center">
                 {isOwnProfile ? (
                   <div className="flex items-center text-[11.5px] font-bold tracking-wide text-merqt-indigo-dark bg-merqt-indigo-soft px-3 h-8 rounded">
-                    YOUR PUBLIC PROFILE
+                    YOUR MERQT PROFILE
                   </div>
                 ) : (
                   <>

@@ -46,7 +46,9 @@ export default function Home() {
   async function loadHome() {
     const [{ data: requestRows }, { data: postRows }, { data: sellerRows }] = await Promise.all([
       supabase.from('buyer_requests').select('*, buyer:users(name, avatar_url, slug)').eq('status', 'open').order('created_at', { ascending: false }).limit(4),
-      supabase.from('posts').select('*, author:users(name, avatar_url, slug), seller:sellers(business_name, slug, logo_url)').order('created_at', { ascending: false }).limit(5),
+      supabase.from('posts')
+        .select('*, author:users(name, avatar_url, slug), seller:sellers(business_name, slug, logo_url), original:posts!repost_of_post_id(*, author:users(name, avatar_url, slug), seller:sellers(business_name, slug, logo_url))')
+        .order('created_at', { ascending: false }).limit(8),
       supabase.from('sellers').select('*').order('rating', { ascending: false }).limit(4),
     ])
     setRequests(requestRows ?? [])
@@ -253,23 +255,34 @@ export default function Home() {
               </Card>
             )}
             {posts.map((post) => {
-              const isSeller = !!post.seller_id
-              const authorName = isSeller ? post.seller?.business_name : post.author?.name || 'Buyer'
+              const isRepost = !!post.repost_of_post_id && !!post.original
+              const displayPost = isRepost ? post.original : post
+              const isSeller = !!displayPost.seller_id
+              const authorName = isSeller ? displayPost.seller?.business_name : displayPost.author?.name || 'Buyer'
               const profileHref = isSeller
-                ? post.seller?.slug ? `/@${post.seller.slug}` : null
-                : post.author?.slug ? `/u/${post.author.slug}` : null
+                ? displayPost.seller?.slug ? `/@${displayPost.seller.slug}` : null
+                : displayPost.author?.slug ? `/u/${displayPost.author.slug}` : null
               const authorAvatar = (
                 <Avatar
-                  src={isSeller ? post.seller?.logo_url : post.author?.avatar_url}
+                  src={isSeller ? displayPost.seller?.logo_url : displayPost.author?.avatar_url}
                   name={authorName}
                   size={28}
                   shape={isSeller ? 'square' : 'circle'}
                 />
               )
-              const isOwnPost = isSeller ? post.seller_id === ownSellerId : post.author_user_id === ownUserId
-              const isFollowingAuthor = isSeller ? followedSellerIds.has(post.seller_id) : followedUserIds.has(post.author_user_id)
+              const isOwnPost = isSeller ? displayPost.seller_id === ownSellerId : displayPost.author_user_id === ownUserId
+              const isFollowingAuthor = isSeller ? followedSellerIds.has(displayPost.seller_id) : followedUserIds.has(displayPost.author_user_id)
               return (
                 <Card key={post.id} className="p-4">
+                  {isRepost && (
+                    <p className="text-xs text-merqt-text-muted mb-2 flex items-center gap-1.5">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 2 21 6l-4 4" /><path d="M3 11V9a2 2 0 0 1 2-2h16" />
+                        <path d="M7 22 3 18l4-4" /><path d="M21 13v2a2 2 0 0 1-2 2H3" />
+                      </svg>
+                      {post.author?.name || 'Someone'} reposted
+                    </p>
+                  )}
                   <div className="flex items-center gap-2 mb-2">
                     {profileHref ? (
                       <Link href={profileHref} className="flex items-center gap-2">
@@ -287,20 +300,20 @@ export default function Home() {
                         Business
                       </span>
                     )}
-                    <span className="text-xs text-merqt-text-muted">{timeAgoShort(post.created_at)}</span>
+                    <span className="text-xs text-merqt-text-muted">{timeAgoShort(displayPost.created_at)}</span>
                     <div className="flex-1" />
-                    {!isOwnPost && (isSeller ? post.seller_id : post.author_user_id) && (
+                    {!isOwnPost && (isSeller ? displayPost.seller_id : displayPost.author_user_id) && (
                       <button
-                        onClick={() => isSeller ? toggleFollowSeller(post.seller_id) : toggleFollowUser(post.author_user_id)}
+                        onClick={() => isSeller ? toggleFollowSeller(displayPost.seller_id) : toggleFollowUser(displayPost.author_user_id)}
                         className={`rounded px-2.5 py-1 text-[11px] font-semibold flex-shrink-0 ${isFollowingAuthor ? 'border border-merqt-border text-merqt-text-muted' : 'bg-merqt-indigo text-merqt-surface'}`}
                       >
                         {isFollowingAuthor ? 'Following' : 'Follow'}
                       </button>
                     )}
                   </div>
-                  <p className="text-sm leading-relaxed mb-2">{post.text}</p>
-                  {post.image_url && <img src={post.image_url} alt="" className="w-full rounded object-cover max-h-72" />}
-                  <PostSocialBar postId={post.id} />
+                  <p className="text-sm leading-relaxed mb-2">{displayPost.text}</p>
+                  {displayPost.image_url && <img src={displayPost.image_url} alt="" className="w-full rounded object-cover max-h-72" />}
+                  <PostSocialBar postId={displayPost.id} shareUrl="/network" onReposted={loadHome} />
                 </Card>
               )
             })}

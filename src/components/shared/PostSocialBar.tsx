@@ -8,38 +8,51 @@ import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
 import { Avatar } from '@/components/ui/Avatar'
 
-export function PostSocialBar({ postId }: { postId: string }) {
+export function PostSocialBar({
+  postId,
+  shareUrl = '/network',
+  onReposted,
+}: {
+  postId: string
+  shareUrl?: string
+  onReposted?: () => void
+}) {
   const { user } = useUser()
   const supabase = useSupabaseClient()
   const router = useRouter()
 
   const [likeCount, setLikeCount] = useState(0)
   const [liked, setLiked] = useState(false)
-  const [bookmarked, setBookmarked] = useState(false)
   const [commentCount, setCommentCount] = useState(0)
   const [showComments, setShowComments] = useState(false)
   const [comments, setComments] = useState<any[]>([])
   const [commentText, setCommentText] = useState('')
   const [posting, setPosting] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [repostCount, setRepostCount] = useState(0)
+  const [reposted, setReposted] = useState(false)
+  const [reposting, setReposting] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   async function loadCounts() {
-    const [{ count: likes }, { count: cmts }] = await Promise.all([
+    const [{ count: likes }, { count: cmts }, { count: reposts }] = await Promise.all([
       supabase.from('post_likes').select('id', { count: 'exact', head: true }).eq('post_id', postId),
       supabase.from('post_comments').select('id', { count: 'exact', head: true }).eq('post_id', postId),
+      supabase.from('posts').select('id', { count: 'exact', head: true }).eq('repost_of_post_id', postId),
     ])
     setLikeCount(likes ?? 0)
     setCommentCount(cmts ?? 0)
+    setRepostCount(reposts ?? 0)
 
     if (user) {
       const { data: userRow } = await supabase.from('users').select('id').eq('clerk_id', user.id).single()
       if (userRow) {
-        const [{ data: likeRow }, { data: bmRow }] = await Promise.all([
+        const [{ data: likeRow }, { data: repostRow }] = await Promise.all([
           supabase.from('post_likes').select('id').eq('post_id', postId).eq('user_id', userRow.id).single(),
-          supabase.from('post_bookmarks').select('id').eq('post_id', postId).eq('user_id', userRow.id).single(),
+          supabase.from('posts').select('id').eq('repost_of_post_id', postId).eq('author_user_id', userRow.id).single(),
         ])
         setLiked(!!likeRow)
-        setBookmarked(!!bmRow)
+        setReposted(!!repostRow)
       }
     }
   }
@@ -66,21 +79,43 @@ export function PostSocialBar({ postId }: { postId: string }) {
     }
   }
 
-  async function toggleBookmark() {
+  async function toggleRepost() {
     if (!user) { router.push('/login'); return }
-    if (busy) return
-    setBusy(true)
+    if (reposting) return
+    setReposting(true)
     try {
       const userId = await ensureUserRow(supabase, user)
-      if (bookmarked) {
-        await supabase.from('post_bookmarks').delete().eq('post_id', postId).eq('user_id', userId)
-        setBookmarked(false)
+      if (reposted) {
+        await supabase.from('posts').delete().eq('repost_of_post_id', postId).eq('author_user_id', userId)
+        setReposted(false)
+        setRepostCount((c) => Math.max(0, c - 1))
       } else {
-        await supabase.from('post_bookmarks').insert({ post_id: postId, user_id: userId })
-        setBookmarked(true)
+        await supabase.from('posts').insert({ author_user_id: userId, repost_of_post_id: postId })
+        setReposted(true)
+        setRepostCount((c) => c + 1)
+        onReposted?.()
       }
     } finally {
-      setBusy(false)
+      setReposting(false)
+    }
+  }
+
+  async function share() {
+    const url = typeof window !== 'undefined' ? `${window.location.origin}${shareUrl}` : shareUrl
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ url })
+        return
+      } catch {
+        // fall through to clipboard copy
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // clipboard unavailable - nothing more we can do
     }
   }
 
@@ -139,17 +174,31 @@ export function PostSocialBar({ postId }: { postId: string }) {
           {commentCount > 0 ? commentCount : 'Comment'}
         </button>
 
+        <button
+          type="button"
+          onClick={toggleRepost}
+          disabled={reposting}
+          className={`flex items-center gap-1.5 text-xs font-semibold ${reposted ? 'text-merqt-success-dark' : 'text-merqt-text-muted'}`}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 2 21 6l-4 4" /><path d="M3 11V9a2 2 0 0 1 2-2h16" />
+            <path d="M7 22 3 18l4-4" /><path d="M21 13v2a2 2 0 0 1-2 2H3" />
+          </svg>
+          {repostCount > 0 ? repostCount : reposted ? 'Reposted' : 'Repost'}
+        </button>
+
         <div className="flex-1" />
 
         <button
           type="button"
-          onClick={toggleBookmark}
-          className={bookmarked ? 'text-merqt-indigo' : 'text-merqt-text-muted'}
-          aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark'}
+          onClick={share}
+          className="flex items-center gap-1.5 text-xs font-semibold text-merqt-text-muted"
         >
-          <svg viewBox="0 0 24 24" width="16" height="16" fill={bookmarked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+            <path d="m8.6 10.5 6.8-3.9M8.6 13.5l6.8 3.9" />
           </svg>
+          {copied ? 'Link copied' : 'Share'}
         </button>
       </div>
 
