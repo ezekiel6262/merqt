@@ -168,7 +168,10 @@ export default function OnboardingPage() {
             <p className="text-merqt-text-muted text-sm mb-5">
               Your account can have 1 business profile. Upgrade to Premium to launch up to 5.
             </p>
-            <Link href="/dashboard"><Button variant="primary" size="lg">Go to your dashboard</Button></Link>
+            <div className="flex gap-2.5 justify-center">
+              <Link href="/dashboard"><Button variant="ghost" size="lg">Go to dashboard</Button></Link>
+              <Link href="/settings/premium"><Button variant="primary" size="lg">Upgrade to Premium</Button></Link>
+            </div>
           </Card>
         </div>
       </div>

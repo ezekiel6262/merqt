@@ -86,6 +86,13 @@ export function ProfileMenu({
             </Link>
           )}
           <Link
+            href="/settings/premium"
+            onClick={() => setOpen(false)}
+            className="block px-3.5 py-2.5 text-[13.5px] font-semibold text-merqt-ochre-dark hover:bg-merqt-bg border-t border-merqt-border"
+          >
+            Merqt Premium
+          </Link>
+          <Link
             href="/settings/account"
             onClick={() => setOpen(false)}
             className="block px-3.5 py-2.5 text-[13.5px] text-merqt-text hover:bg-merqt-bg border-t border-merqt-border"
