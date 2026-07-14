@@ -9,10 +9,14 @@ export function ProfileMenu({
   name,
   avatarUrl,
   slug,
+  isSeller = false,
+  direction = 'down',
 }: {
   name: string
   avatarUrl: string
   slug: string | null
+  isSeller?: boolean
+  direction?: 'down' | 'up'
 }) {
   const { signOut } = useClerk()
   const [open, setOpen] = useState(false)
@@ -42,7 +46,11 @@ export function ProfileMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 w-44 bg-merqt-surface border border-merqt-border rounded-card shadow-md overflow-hidden z-50">
+        <div
+          className={`absolute right-0 w-44 bg-merqt-surface border border-merqt-border rounded-card shadow-md overflow-hidden z-50 ${
+            direction === 'up' ? 'bottom-10' : 'top-10'
+          }`}
+        >
           <Link
             href={slug ? `/u/${slug}` : '/settings/profile'}
             onClick={() => setOpen(false)}
@@ -57,6 +65,23 @@ export function ProfileMenu({
           >
             Edit profile
           </Link>
+          {isSeller ? (
+            <Link
+              href="/dashboard"
+              onClick={() => setOpen(false)}
+              className="block px-3.5 py-2.5 text-[13.5px] text-merqt-text hover:bg-merqt-bg border-t border-merqt-border"
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <Link
+              href="/onboarding"
+              onClick={() => setOpen(false)}
+              className="block px-3.5 py-2.5 text-[13.5px] text-merqt-text hover:bg-merqt-bg border-t border-merqt-border"
+            >
+              Become a seller
+            </Link>
+          )}
           <Link
             href="/settings/account"
             onClick={() => setOpen(false)}

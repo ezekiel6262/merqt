@@ -37,7 +37,7 @@ export default function RootLayout({
       <html lang="en" className={`${sourceSerif.variable} ${plexSans.variable} ${plexMono.variable}`}>
         <body>
           <Navbar />
-          {children}
+          <div className="pb-16 md:pb-0">{children}</div>
         </body>
       </html>
     </ClerkProvider>
