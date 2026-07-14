@@ -494,7 +494,7 @@ function ActivityInner() {
 
         {tab === 'messages' && (
           <div className="grid grid-cols-1 sm:grid-cols-[240px_1fr] border border-merqt-border rounded-card bg-merqt-surface overflow-hidden min-h-[420px]">
-            <div className="border-b sm:border-b-0 sm:border-r border-merqt-border overflow-y-auto max-h-96 sm:max-h-none">
+            <div className={`border-b sm:border-b-0 sm:border-r border-merqt-border overflow-y-auto max-h-96 sm:max-h-none ${selectedConvoId ? 'hidden sm:block' : ''}`}>
               <div className="font-semibold text-sm p-4">Conversations</div>
               {conversations.length === 0 && (
                 <p className="px-4 pb-4 text-xs text-merqt-text-muted">No conversations yet. Message a seller from their profile.</p>
@@ -540,7 +540,7 @@ function ActivityInner() {
               })}
             </div>
 
-            <div className="flex flex-col">
+            <div className={`flex flex-col ${selectedConvoId ? '' : 'hidden sm:flex'}`}>
               {!selectedConvo ? (
                 <div className="flex-1 flex items-center justify-center text-sm text-merqt-text-muted p-8 text-center">
                   Select a conversation to view messages.
@@ -548,6 +548,14 @@ function ActivityInner() {
               ) : (
                 <>
                   <div className="p-4 border-b border-merqt-border flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedConvoId(null)}
+                      className="sm:hidden text-merqt-text-muted flex-shrink-0 text-lg leading-none"
+                      aria-label="Back to conversations"
+                    >
+                      ←
+                    </button>
                     {selectedConvoProfileHref ? (
                       <Link href={selectedConvoProfileHref} className="flex items-center gap-2.5 hover:underline">
                         <Avatar

@@ -393,11 +393,13 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
                   {c === 'All' ? 'All' : CATEGORY_SHORT_LABEL[c] ?? c}
                 </button>
               ))}
+            </div>
 
+            <div className="flex gap-2 flex-wrap items-center mb-3 sm:justify-end">
               <select
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="ml-auto px-3 py-1.5 rounded-pill text-xs font-semibold border border-merqt-border bg-merqt-surface text-merqt-text"
+                className="flex-1 sm:flex-none min-w-0 px-3 py-1.5 rounded-pill text-xs font-semibold border border-merqt-border bg-merqt-surface text-merqt-text"
               >
                 <option>All locations</option>
                 {CITIES.map((c) => <option key={c}>{c}</option>)}
@@ -410,7 +412,7 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
                   setSort(next)
                   if (next === 'distance' && locationStatus === 'idle') requestLocation()
                 }}
-                className="px-3 py-1.5 rounded-pill text-xs font-semibold border border-merqt-border bg-merqt-surface text-merqt-text"
+                className="flex-1 sm:flex-none min-w-0 px-3 py-1.5 rounded-pill text-xs font-semibold border border-merqt-border bg-merqt-surface text-merqt-text"
               >
                 <option value="recommended">Sort: Recommended</option>
                 <option value="rating">Sort: Rating, high to low</option>

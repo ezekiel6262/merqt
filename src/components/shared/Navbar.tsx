@@ -65,6 +65,38 @@ export function Navbar() {
       ? 'text-merqt-indigo font-bold border-merqt-indigo'
       : 'text-merqt-text-muted font-medium border-transparent hover:text-merqt-text')
 
+  const navLinks = (
+    <>
+      <Link href="/" className={linkClass('/')}>Home</Link>
+      <Link href="/discover" className={linkClass('/discover')}>Discover</Link>
+      <Link href="/network" className={linkClass('/network')}>Network</Link>
+
+      {isSignedIn && (
+        <Link href="/activity" className={linkClass('/activity')}>
+          Activity
+          {unreadCount > 0 && (
+            <span className="min-w-[16px] h-4 px-1 rounded-full bg-merqt-ochre-dark text-merqt-surface text-[9.5px] font-bold flex items-center justify-center">
+              {unreadCount}
+            </span>
+          )}
+        </Link>
+      )}
+
+      {isSignedIn && isSeller && (
+        <Link href="/dashboard" className={linkClass('/dashboard')}>Dashboard</Link>
+      )}
+
+      {isSignedIn && !isSeller && (
+        <Link
+          href="/onboarding"
+          className="ml-2 bg-merqt-indigo text-merqt-surface rounded px-3 py-1.5 text-xs font-semibold whitespace-nowrap"
+        >
+          Become a seller
+        </Link>
+      )}
+    </>
+  )
+
   return (
     <header className="bg-merqt-surface border-b border-merqt-border sticky top-0 z-50">
       <div className="max-w-5xl mx-auto px-5 h-14 flex items-center gap-3">
@@ -77,35 +109,7 @@ export function Navbar() {
 
         <div className="flex-1" />
 
-        <nav className="flex items-center gap-0.5">
-          <Link href="/" className={linkClass('/')}>Home</Link>
-          <Link href="/discover" className={linkClass('/discover')}>Discover</Link>
-          <Link href="/network" className={linkClass('/network')}>Network</Link>
-
-          {isSignedIn && (
-            <Link href="/activity" className={linkClass('/activity')}>
-              Activity
-              {unreadCount > 0 && (
-                <span className="min-w-[16px] h-4 px-1 rounded-full bg-merqt-ochre-dark text-merqt-surface text-[9.5px] font-bold flex items-center justify-center">
-                  {unreadCount}
-                </span>
-              )}
-            </Link>
-          )}
-
-          {isSignedIn && isSeller && (
-            <Link href="/dashboard" className={linkClass('/dashboard')}>Dashboard</Link>
-          )}
-
-          {isSignedIn && !isSeller && (
-            <Link
-              href="/onboarding"
-              className="ml-2 bg-merqt-indigo text-merqt-surface rounded px-3 py-1.5 text-xs font-semibold whitespace-nowrap"
-            >
-              Become a seller
-            </Link>
-          )}
-        </nav>
+        <nav className="hidden md:flex items-center gap-0.5">{navLinks}</nav>
 
         {isSignedIn ? (
           <div className="ml-1 flex-shrink-0">
@@ -121,6 +125,10 @@ export function Navbar() {
           </div>
         )}
 
+      </div>
+
+      <div className="md:hidden overflow-x-auto border-t border-merqt-border">
+        <nav className="flex items-center gap-0.5 px-3 py-1.5 min-w-max">{navLinks}</nav>
       </div>
     </header>
   )
