@@ -24,6 +24,7 @@ export default function ProfileSettingsPage() {
   const [bio, setBio] = useState('')
   const [slug, setSlug] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
+  const [coverPhotoUrl, setCoverPhotoUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
@@ -38,6 +39,7 @@ export default function ProfileSettingsPage() {
       setBio(data?.bio ?? '')
       setSlug(data?.slug ?? '')
       setAvatarUrl(data?.avatar_url ?? '')
+      setCoverPhotoUrl(data?.cover_photo_url ?? '')
       setLoaded(true)
     }
     load()
@@ -56,6 +58,7 @@ export default function ProfileSettingsPage() {
           bio: bio.trim() || null,
           slug: slug.trim() ? makeSlug(slug) : null,
           avatar_url: avatarUrl || null,
+          cover_photo_url: coverPhotoUrl || null,
         })
         .eq('id', userId)
 
@@ -82,7 +85,25 @@ export default function ProfileSettingsPage() {
         <p className="text-sm text-merqt-text-muted mb-6">This is your personal Merqt profile, separate from any business profile.</p>
 
         <Card className="p-5 space-y-4">
-          <div className="flex items-center gap-4">
+          <div className="relative h-28 sm:h-36 -m-5 mb-0 rounded-t-card overflow-hidden bg-merqt-indigo-soft">
+            {coverPhotoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={coverPhotoUrl} alt="" className="w-full h-full object-cover" />
+            )}
+            <CldUploadWidget uploadPreset="merqt_products" onSuccess={(result: any) => setCoverPhotoUrl(result.info.secure_url)}>
+              {({ open }) => (
+                <button
+                  type="button"
+                  onClick={() => open()}
+                  className="absolute bottom-2.5 right-2.5 bg-merqt-surface/90 text-merqt-text text-xs font-semibold px-2.5 py-1.5 rounded shadow-sm"
+                >
+                  {coverPhotoUrl ? 'Change cover photo' : '+ Add cover photo'}
+                </button>
+              )}
+            </CldUploadWidget>
+          </div>
+
+          <div className="flex items-center gap-4 pt-4">
             {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatarUrl} alt={name} className="w-16 h-16 rounded-card object-cover flex-shrink-0" />

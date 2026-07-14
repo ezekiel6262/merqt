@@ -143,6 +143,31 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-merqt-bg py-8 px-5">
       <div className="max-w-2xl mx-auto">
 
+        <div className="relative h-32 sm:h-40 rounded-card overflow-hidden mb-4 bg-merqt-indigo-soft">
+          {seller.cover_photo_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={seller.cover_photo_url} alt="" className="w-full h-full object-cover" />
+          )}
+          <CldUploadWidget
+            uploadPreset="merqt_products"
+            onSuccess={async (result: any) => {
+              const cover_photo_url = result.info.secure_url
+              setSeller((prev: any) => ({ ...prev, cover_photo_url }))
+              await supabase.from('sellers').update({ cover_photo_url }).eq('id', seller.id)
+            }}
+          >
+            {({ open }) => (
+              <button
+                type="button"
+                onClick={() => open()}
+                className="absolute bottom-2.5 right-2.5 bg-merqt-surface/90 text-merqt-text text-xs font-semibold px-2.5 py-1.5 rounded shadow-sm"
+              >
+                {seller.cover_photo_url ? 'Change cover photo' : '+ Add cover photo'}
+              </button>
+            )}
+          </CldUploadWidget>
+        </div>
+
         <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
           <div className="flex items-center gap-3">
             {seller.logo_url ? (

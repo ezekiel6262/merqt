@@ -103,7 +103,12 @@ export function ProfileClient({
       <div className="max-w-3xl mx-auto">
 
         <div className="bg-merqt-surface border border-merqt-border rounded-card overflow-hidden">
-          <div className="h-16" style={{ background: STRIPE_BG }} />
+          {seller.cover_photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={seller.cover_photo_url} alt="" className="w-full h-28 sm:h-36 object-cover" />
+          ) : (
+            <div className="h-16" style={{ background: STRIPE_BG }} />
+          )}
           <div className="p-6">
             <div className="flex justify-between items-start gap-4 mb-4 flex-wrap">
               <div className="flex gap-4">

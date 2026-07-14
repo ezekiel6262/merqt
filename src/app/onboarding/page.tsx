@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useUser } from '@clerk/nextjs'
 import { CldUploadWidget } from 'next-cloudinary'
 import { useSupabaseClient } from '@/lib/supabase/client'
@@ -22,6 +23,9 @@ export default function OnboardingPage() {
   const { user } = useUser()
   const supabase = useSupabaseClient()
   const router = useRouter()
+
+  const [limitChecked, setLimitChecked] = useState(false)
+  const [atLimit, setAtLimit] = useState(false)
 
   const [step, setStep] = useState(0)
   const [businessName, setBusinessName] = useState('')
@@ -89,6 +93,20 @@ export default function OnboardingPage() {
     }
   }
 
+  useEffect(() => {
+    async function checkLimit() {
+      if (!user) return
+      const userId = await ensureUserRow(supabase, user)
+      const { data: userRow } = await supabase
+        .from('users').select('max_businesses').eq('id', userId).single()
+      const { count } = await supabase
+        .from('sellers').select('id', { count: 'exact', head: true }).eq('user_id', userId)
+      setAtLimit((count ?? 0) >= (userRow?.max_businesses ?? 1))
+      setLimitChecked(true)
+    }
+    checkLimit()
+  }, [user])
+
   async function handleSkip() {
     if (user) {
       try {
@@ -140,6 +158,22 @@ export default function OnboardingPage() {
   }
 
   const basicsValid = businessName.length >= 3 && category !== '' && city !== ''
+
+  if (limitChecked && atLimit) {
+    return (
+      <div className="min-h-screen bg-merqt-bg flex items-start justify-center pt-12 px-4 pb-12">
+        <div className="w-full max-w-lg">
+          <Card className="p-6 text-center">
+            <h1 className="font-serif text-2xl font-semibold text-merqt-text mb-2">You&apos;ve reached your business limit</h1>
+            <p className="text-merqt-text-muted text-sm mb-5">
+              Your account can have 1 business profile. Upgrade to Premium to launch up to 5.
+            </p>
+            <Link href="/dashboard"><Button variant="primary" size="lg">Go to your dashboard</Button></Link>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-merqt-bg flex items-start justify-center pt-12 px-4 pb-12">

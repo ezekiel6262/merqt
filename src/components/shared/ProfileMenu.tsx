@@ -10,12 +10,14 @@ export function ProfileMenu({
   avatarUrl,
   slug,
   isSeller = false,
+  canAddBusiness = true,
   direction = 'down',
 }: {
   name: string
   avatarUrl: string
   slug: string | null
   isSeller?: boolean
+  canAddBusiness?: boolean
   direction?: 'down' | 'up'
 }) {
   const { signOut } = useClerk()
@@ -65,7 +67,7 @@ export function ProfileMenu({
           >
             Edit profile
           </Link>
-          {isSeller ? (
+          {isSeller && (
             <Link
               href="/dashboard"
               onClick={() => setOpen(false)}
@@ -73,13 +75,14 @@ export function ProfileMenu({
             >
               Dashboard
             </Link>
-          ) : (
+          )}
+          {canAddBusiness && (
             <Link
               href="/onboarding"
               onClick={() => setOpen(false)}
               className="block px-3.5 py-2.5 text-[13.5px] text-merqt-text hover:bg-merqt-bg border-t border-merqt-border"
             >
-              Become a seller
+              {isSeller ? '+ Add a business' : 'Become a seller'}
             </Link>
           )}
           <Link

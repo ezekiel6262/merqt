@@ -12,6 +12,7 @@ export function Navbar() {
   const pathname = usePathname()
   const { user, isSignedIn } = useUser()
   const [isSeller, setIsSeller] = useState(false)
+  const [canAddBusiness, setCanAddBusiness] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0)
   const [profile, setProfile] = useState<{ name: string; avatarUrl: string; slug: string | null }>({
     name: '', avatarUrl: '', slug: null,
@@ -21,7 +22,7 @@ export function Navbar() {
   async function checkStatus() {
     if (!user) return
     const { data: userRow } = await supabase
-      .from('users').select('id, name, avatar_url, slug').eq('clerk_id', user.id).single()
+      .from('users').select('id, name, avatar_url, slug, max_businesses').eq('clerk_id', user.id).single()
     if (!userRow) return
 
     setProfile({ name: userRow.name ?? '', avatarUrl: userRow.avatar_url ?? '', slug: userRow.slug ?? null })
@@ -29,6 +30,10 @@ export function Navbar() {
     const { data: sellerRow } = await supabase
       .from('sellers').select('id').eq('user_id', userRow.id).single()
     setIsSeller(!!sellerRow)
+
+    const { count: sellerCount } = await supabase
+      .from('sellers').select('id', { count: 'exact', head: true }).eq('user_id', userRow.id)
+    setCanAddBusiness((sellerCount ?? 0) < (userRow.max_businesses ?? 1))
 
     const orFilter = sellerRow
       ? `buyer_id.eq.${userRow.id},seller_id.eq.${sellerRow.id}`
@@ -101,19 +106,19 @@ export function Navbar() {
             <Link href="/dashboard" className={linkClass('/dashboard')}>Dashboard</Link>
           )}
 
-          {isSignedIn && !isSeller && (
+          {isSignedIn && canAddBusiness && (
             <Link
               href="/onboarding"
               className="ml-2 bg-merqt-indigo text-merqt-surface rounded px-3 py-1.5 text-xs font-semibold whitespace-nowrap"
             >
-              Become a seller
+              {isSeller ? '+ Add a business' : 'Become a seller'}
             </Link>
           )}
         </nav>
 
         {isSignedIn ? (
           <div className="hidden md:block ml-1 flex-shrink-0">
-            <ProfileMenu name={profile.name} avatarUrl={profile.avatarUrl} slug={profile.slug} isSeller={isSeller} />
+            <ProfileMenu name={profile.name} avatarUrl={profile.avatarUrl} slug={profile.slug} isSeller={isSeller} canAddBusiness={canAddBusiness} />
           </div>
         ) : (
           <div className="hidden md:flex items-center gap-2 ml-1 flex-shrink-0">
@@ -169,7 +174,7 @@ export function Navbar() {
 
         {isSignedIn ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5">
-            <ProfileMenu name={profile.name} avatarUrl={profile.avatarUrl} slug={profile.slug} isSeller={isSeller} direction="up" />
+            <ProfileMenu name={profile.name} avatarUrl={profile.avatarUrl} slug={profile.slug} isSeller={isSeller} canAddBusiness={canAddBusiness} direction="up" />
             <span className="text-[9.5px] font-semibold text-merqt-text-muted">Profile</span>
           </div>
         ) : (
