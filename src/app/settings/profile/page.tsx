@@ -25,9 +25,20 @@ export default function ProfileSettingsPage() {
   const [slug, setSlug] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
   const [coverPhotoUrl, setCoverPhotoUrl] = useState('')
+  const [nameChangedAt, setNameChangedAt] = useState<string | null>(null)
+  const [slugChangedAt, setSlugChangedAt] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+
+  function cooldownDaysLeft(changedAt: string | null): number {
+    if (!changedAt) return 0
+    const unlockAt = new Date(changedAt).getTime() + 30 * 24 * 60 * 60 * 1000
+    return Math.max(0, Math.ceil((unlockAt - Date.now()) / (24 * 60 * 60 * 1000)))
+  }
+
+  const nameDaysLeft = cooldownDaysLeft(nameChangedAt)
+  const slugDaysLeft = cooldownDaysLeft(slugChangedAt)
 
   useEffect(() => {
     async function load() {
@@ -40,6 +51,8 @@ export default function ProfileSettingsPage() {
       setSlug(data?.slug ?? '')
       setAvatarUrl(data?.avatar_url ?? '')
       setCoverPhotoUrl(data?.cover_photo_url ?? '')
+      setNameChangedAt(data?.name_changed_at ?? null)
+      setSlugChangedAt(data?.slug_changed_at ?? null)
       setLoaded(true)
     }
     load()
@@ -135,10 +148,16 @@ export default function ProfileSettingsPage() {
           <div>
             <label className="block text-sm font-semibold mb-1">Name</label>
             <input
-              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo"
+              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo disabled:bg-merqt-bg disabled:text-merqt-text-muted"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              disabled={nameDaysLeft > 0}
             />
+            {nameDaysLeft > 0 && (
+              <p className="text-xs text-merqt-text-muted mt-1">
+                To help prevent impersonation, you can change your name once every 30 days. You can change it again in {nameDaysLeft} day{nameDaysLeft === 1 ? '' : 's'}.
+              </p>
+            )}
           </div>
 
           <div>
@@ -146,13 +165,19 @@ export default function ProfileSettingsPage() {
               Profile link <span className="font-normal text-merqt-text-muted">(optional)</span>
             </label>
             <input
-              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo"
+              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo disabled:bg-merqt-bg disabled:text-merqt-text-muted"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
               placeholder="e.g. zek"
+              disabled={slugDaysLeft > 0}
             />
             {slug.trim() && (
               <p className="text-xs text-merqt-text-muted mt-1">Your link: merqt.com/u/{makeSlug(slug)}</p>
+            )}
+            {slugDaysLeft > 0 && (
+              <p className="text-xs text-merqt-text-muted mt-1">
+                You can change your profile link again in {slugDaysLeft} day{slugDaysLeft === 1 ? '' : 's'}.
+              </p>
             )}
           </div>
 

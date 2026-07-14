@@ -5,6 +5,7 @@ import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { formatNaira } from '@/lib/format'
+import { makeSlug } from '@/lib/slug'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { MetricCard } from '@/components/ui/Stat'
@@ -32,6 +33,45 @@ export default function DashboardPage() {
   const [identitySubmitting, setIdentitySubmitting] = useState(false)
   const [identityError, setIdentityError] = useState('')
 
+  const [bizName, setBizName] = useState('')
+  const [bizSlug, setBizSlug] = useState('')
+  const [bizSaving, setBizSaving] = useState(false)
+  const [bizError, setBizError] = useState('')
+  const [bizSaved, setBizSaved] = useState(false)
+
+  function cooldownDaysLeft(changedAt: string | null | undefined): number {
+    if (!changedAt) return 0
+    const unlockAt = new Date(changedAt).getTime() + 30 * 24 * 60 * 60 * 1000
+    return Math.max(0, Math.ceil((unlockAt - Date.now()) / (24 * 60 * 60 * 1000)))
+  }
+
+  const bizNameDaysLeft = cooldownDaysLeft(seller?.business_name_changed_at)
+  const bizSlugDaysLeft = cooldownDaysLeft(seller?.slug_changed_at)
+
+  async function saveBusinessProfile() {
+    if (!seller) return
+    setBizSaving(true)
+    setBizError('')
+    setBizSaved(false)
+    try {
+      const { error: updateErr } = await supabase
+        .from('sellers')
+        .update({ business_name: bizName.trim(), slug: makeSlug(bizSlug) })
+        .eq('id', seller.id)
+
+      if (updateErr) {
+        if (updateErr.code === '23505') throw new Error('That business link is already taken - try another.')
+        throw updateErr
+      }
+      await loadData()
+      setBizSaved(true)
+    } catch (err: any) {
+      setBizError(err.message ?? 'Something went wrong')
+    } finally {
+      setBizSaving(false)
+    }
+  }
+
   async function loadData() {
     if (!user) return
 
@@ -42,6 +82,10 @@ export default function DashboardPage() {
     const { data: sellerRow } = await supabase
       .from('sellers').select('*').eq('user_id', userRow.id).single()
     setSeller(sellerRow)
+    if (sellerRow) {
+      setBizName(sellerRow.business_name ?? '')
+      setBizSlug(sellerRow.slug ?? '')
+    }
 
     if (sellerRow) {
       const { data: productRows } = await supabase
@@ -198,6 +242,50 @@ export default function DashboardPage() {
           </div>
           <Link href="/dashboard/orders"><Button variant="primary">Orders and requests</Button></Link>
         </div>
+
+        <Card className="p-3.5 mb-5 space-y-3">
+          <div className="text-sm font-semibold">Business profile</div>
+          <div>
+            <label className="block text-xs font-semibold mb-1">Business name</label>
+            <input
+              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo disabled:bg-merqt-bg disabled:text-merqt-text-muted"
+              value={bizName}
+              onChange={(e) => setBizName(e.target.value)}
+              disabled={bizNameDaysLeft > 0}
+            />
+            {bizNameDaysLeft > 0 && (
+              <p className="text-xs text-merqt-text-muted mt-1">
+                To help prevent impersonation, you can change your business name once every 30 days
+                (and not while an order is active or disputed). You can change it again in {bizNameDaysLeft} day{bizNameDaysLeft === 1 ? '' : 's'}.
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1">Business link</label>
+            <input
+              className="w-full border border-merqt-border rounded px-3 py-2 text-sm outline-none focus:border-merqt-indigo disabled:bg-merqt-bg disabled:text-merqt-text-muted"
+              value={bizSlug}
+              onChange={(e) => setBizSlug(e.target.value)}
+              disabled={bizSlugDaysLeft > 0}
+            />
+            {bizSlug.trim() && <p className="text-xs text-merqt-text-muted mt-1">Your link: merqt.com/@{makeSlug(bizSlug)}</p>}
+            {bizSlugDaysLeft > 0 && (
+              <p className="text-xs text-merqt-text-muted mt-1">
+                You can change your business link again in {bizSlugDaysLeft} day{bizSlugDaysLeft === 1 ? '' : 's'}.
+              </p>
+            )}
+          </div>
+          {bizError && <p className="text-xs text-merqt-ochre-dark">{bizError}</p>}
+          {bizSaved && !bizError && <p className="text-xs text-merqt-success-dark">Saved.</p>}
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={bizSaving || !bizName.trim() || (bizName === seller.business_name && bizSlug === seller.slug)}
+            onClick={saveBusinessProfile}
+          >
+            {bizSaving ? 'Saving...' : 'Save changes'}
+          </Button>
+        </Card>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-5">
           <MetricCard value={seller.order_count} label="Orders" />

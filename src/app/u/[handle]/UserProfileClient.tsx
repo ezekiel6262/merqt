@@ -53,6 +53,9 @@ export function UserProfileClient({
                   <h1 className="font-serif text-2xl font-semibold text-merqt-text leading-tight mb-1">
                     {profileUser.name || 'Merqt member'}
                   </h1>
+                  {profileUser.previous_name && profileUser.previous_name_until && new Date(profileUser.previous_name_until) > new Date() && (
+                    <p className="text-xs text-merqt-text-muted mb-1">Formerly known as {profileUser.previous_name}</p>
+                  )}
                   <div className="text-sm text-merqt-text-muted">
                     On Merqt since {timeAgo(profileUser.created_at)}
                   </div>

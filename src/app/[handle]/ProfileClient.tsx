@@ -115,6 +115,9 @@ export function ProfileClient({
                 <Avatar src={seller.logo_url} name={seller.business_name} size={64} shape="square" />
                 <div>
                   <h1 className="font-serif text-2xl font-semibold text-merqt-text leading-tight mb-1">{seller.business_name}</h1>
+                  {seller.previous_business_name && seller.previous_business_name_until && new Date(seller.previous_business_name_until) > new Date() && (
+                    <p className="text-xs text-merqt-text-muted mb-1">Formerly known as {seller.previous_business_name}</p>
+                  )}
                   <div className="text-sm text-merqt-text-muted">
                     {seller.category} · {seller.city}
                     {waLink && (
