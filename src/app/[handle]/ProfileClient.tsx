@@ -39,8 +39,8 @@ export function ProfileClient({
       const { data: userRow } = await supabase.from('users').select('id').eq('clerk_id', user.id).single()
       if (!userRow) return
 
-      const { data: sellerRow } = await supabase.from('sellers').select('id').eq('user_id', userRow.id).single()
-      if (sellerRow?.id === seller.id) {
+      const { data: sellerRows } = await supabase.from('sellers').select('id').eq('user_id', userRow.id)
+      if ((sellerRows ?? []).some((s) => s.id === seller.id)) {
         setIsOwnProfile(true)
         return
       }

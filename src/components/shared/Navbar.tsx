@@ -31,16 +31,14 @@ export function Navbar() {
     setProfile({ name: userRow.name ?? '', avatarUrl: userRow.avatar_url ?? '', slug: userRow.slug ?? null })
     setOwnUserId(userRow.id)
 
-    const { data: sellerRow } = await supabase
-      .from('sellers').select('id').eq('user_id', userRow.id).single()
-    setIsSeller(!!sellerRow)
+    const { data: sellerRows } = await supabase
+      .from('sellers').select('id').eq('user_id', userRow.id)
+    const sellerIds = (sellerRows ?? []).map((s) => s.id)
+    setIsSeller(sellerIds.length > 0)
+    setCanAddBusiness(sellerIds.length < (userRow.max_businesses ?? 1))
 
-    const { count: sellerCount } = await supabase
-      .from('sellers').select('id', { count: 'exact', head: true }).eq('user_id', userRow.id)
-    setCanAddBusiness((sellerCount ?? 0) < (userRow.max_businesses ?? 1))
-
-    const orFilter = sellerRow
-      ? `buyer_id.eq.${userRow.id},seller_id.eq.${sellerRow.id}`
+    const orFilter = sellerIds.length > 0
+      ? `buyer_id.eq.${userRow.id},seller_id.in.(${sellerIds.join(',')})`
       : `buyer_id.eq.${userRow.id}`
     const { data: convoRows } = await supabase.from('conversations').select('id').or(orFilter)
     const convoIds = (convoRows ?? []).map((c) => c.id)

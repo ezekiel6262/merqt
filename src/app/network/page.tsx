@@ -8,6 +8,7 @@ import { CldUploadWidget } from 'next-cloudinary'
 import { useUser } from '@clerk/nextjs'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
+import { resolveActiveSellerId } from '@/lib/activeSeller'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Avatar } from '@/components/ui/Avatar'
@@ -32,7 +33,9 @@ export default function NetworkPage() {
 
   const [loading, setLoading] = useState(true)
   const [ownUserId, setOwnUserId] = useState<string | null>(null)
-  const [ownSellerId, setOwnSellerId] = useState<string | null>(null)
+  const [ownSellers, setOwnSellers] = useState<any[]>([])
+  const [ownSellerIds, setOwnSellerIds] = useState<Set<string>>(new Set())
+  const [postAsSellerId, setPostAsSellerId] = useState<string | null>(null)
   const [following, setFollowing] = useState<any[]>([])
   const [followingPeople, setFollowingPeople] = useState<any[]>([])
   const [recommended, setRecommended] = useState<any[]>([])
@@ -62,8 +65,11 @@ export default function NetworkPage() {
     if (!userRow) { setLoading(false); return }
     setOwnUserId(userRow.id)
 
-    const { data: sellerRow } = await supabase.from('sellers').select('id').eq('user_id', userRow.id).single()
-    setOwnSellerId(sellerRow?.id ?? null)
+    const { data: sellerRows } = await supabase.from('sellers').select('id, business_name').eq('user_id', userRow.id).order('created_at', { ascending: true })
+    const mySellers = sellerRows ?? []
+    setOwnSellers(mySellers)
+    setOwnSellerIds(new Set(mySellers.map((s: any) => s.id)))
+    setPostAsSellerId((prev) => (prev && mySellers.some((s: any) => s.id === prev) ? prev : resolveActiveSellerId(mySellers)))
 
     const { data: followRows } = await supabase
       .from('follows')
@@ -80,8 +86,8 @@ export default function NetworkPage() {
     let followerUserIds: string[] = []
     const { data: followerOfMeRows } = await supabase.from('follows').select('follower_id').eq('followee_user_id', userRow.id)
     followerUserIds = (followerOfMeRows ?? []).map((r: any) => r.follower_id)
-    if (sellerRow) {
-      const { data: followerOfBizRows } = await supabase.from('follows').select('follower_id').eq('seller_id', sellerRow.id)
+    if (mySellers.length > 0) {
+      const { data: followerOfBizRows } = await supabase.from('follows').select('follower_id').in('seller_id', mySellers.map((s: any) => s.id))
       followerUserIds = [...followerUserIds, ...(followerOfBizRows ?? []).map((r: any) => r.follower_id)]
     }
     followerUserIds = Array.from(new Set(followerUserIds))
@@ -95,7 +101,7 @@ export default function NetworkPage() {
     setNetworkSellerIds(new Set(relevantSellerIds))
     setNetworkAuthorIds(new Set(relevantUserIds))
 
-    const excludeIds = [...followedSellers.map((s: any) => s.id), sellerRow?.id].filter(Boolean)
+    const excludeIds = [...followedSellers.map((s: any) => s.id), ...mySellers.map((s: any) => s.id)].filter(Boolean)
     const { data: recRows } = await supabase
       .from('sellers')
       .select('id, business_name, slug, category, city, logo_url')
@@ -145,7 +151,7 @@ export default function NetworkPage() {
       const userId = await ensureUserRow(supabase, user)
       await supabase.from('posts').insert({
         author_user_id: userId,
-        seller_id: ownSellerId,
+        seller_id: postAsSellerId,
         text: draftText.trim(),
         image_url: draftImage,
       })
@@ -222,10 +228,25 @@ export default function NetworkPage() {
 
           {isSignedIn && (
             <Card className="p-4 mb-4">
+              {ownSellers.length > 0 && (
+                <div className="mb-2.5">
+                  <label className="text-xs font-semibold text-merqt-text-muted mr-2">Posting as</label>
+                  <select
+                    value={postAsSellerId ?? ''}
+                    onChange={(e) => setPostAsSellerId(e.target.value || null)}
+                    className="border border-merqt-border rounded px-2 py-1 text-xs outline-none focus:border-merqt-indigo"
+                  >
+                    <option value="">Yourself</option>
+                    {ownSellers.map((s) => (
+                      <option key={s.id} value={s.id}>{s.business_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <textarea
                 value={draftText}
                 onChange={(e) => setDraftText(e.target.value)}
-                placeholder={ownSellerId ? "New stock, a completed job, a customer shoutout..." : "What are you looking for, or a shoutout about a good experience..."}
+                placeholder={postAsSellerId ? "New stock, a completed job, a customer shoutout..." : "What are you looking for, or a shoutout about a good experience..."}
                 className="w-full min-h-[64px] border border-merqt-border rounded px-3 py-2.5 text-sm outline-none focus:border-merqt-indigo resize-none mb-2.5"
               />
               <div className="flex items-center gap-2.5">
@@ -320,7 +341,7 @@ export default function NetworkPage() {
                         </div>
                       </div>
                     )}
-                    {isSeller && displayPost.seller_id && displayPost.seller_id !== ownSellerId && (
+                    {isSeller && displayPost.seller_id && !ownSellerIds.has(displayPost.seller_id) && (
                       <button
                         onClick={() => toggleFollow(displayPost.seller_id)}
                         className={`rounded px-2.5 py-1 text-[11.5px] font-semibold ${followedSellerIds.has(displayPost.seller_id) ? 'border border-merqt-border text-merqt-text-muted' : 'bg-merqt-indigo text-merqt-surface'}`}

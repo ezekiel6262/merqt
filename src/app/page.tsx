@@ -8,6 +8,7 @@ import { useUser } from '@clerk/nextjs'
 import { CldUploadWidget } from 'next-cloudinary'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
+import { resolveActiveSellerId } from '@/lib/activeSeller'
 import { URGENCY_OPTIONS, urgencyClasses, urgencyLabel, respondToRequest } from '@/lib/requests'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -39,7 +40,7 @@ export default function Home() {
   const [posting, setPosting] = useState(false)
   const [respondingId, setRespondingId] = useState<string | null>(null)
   const [ownUserId, setOwnUserId] = useState<string | null>(null)
-  const [ownSellerId, setOwnSellerId] = useState<string | null>(null)
+  const [ownSellerIds, setOwnSellerIds] = useState<Set<string>>(new Set())
   const [followedSellerIds, setFollowedSellerIds] = useState<Set<string>>(new Set())
   const [followedUserIds, setFollowedUserIds] = useState<Set<string>>(new Set())
 
@@ -66,8 +67,8 @@ export default function Home() {
       if (!data) return
       setOwnUserId(data.id)
 
-      const { data: sellerRow } = await supabase.from('sellers').select('id').eq('user_id', data.id).single()
-      setOwnSellerId(sellerRow?.id ?? null)
+      const { data: ownSellerRows } = await supabase.from('sellers').select('id').eq('user_id', data.id)
+      setOwnSellerIds(new Set((ownSellerRows ?? []).map((s) => s.id)))
 
       const { data: followRows } = await supabase
         .from('follows').select('seller_id, followee_user_id').eq('follower_id', data.id)
@@ -127,9 +128,10 @@ export default function Home() {
     setRespondingId(request.id)
     try {
       const userId = await ensureUserRow(supabase, user)
-      const { data: sellerRow } = await supabase.from('sellers').select('id').eq('user_id', userId).single()
-      if (!sellerRow) { router.push('/onboarding'); return }
-      const conversationId = await respondToRequest(supabase, request, sellerRow.id, userId)
+      const { data: sellerRows } = await supabase.from('sellers').select('id').eq('user_id', userId)
+      const sellerId = resolveActiveSellerId(sellerRows ?? [])
+      if (!sellerId) { router.push('/onboarding'); return }
+      const conversationId = await respondToRequest(supabase, request, sellerId, userId)
       if (conversationId) router.push(`/activity?tab=messages&convo=${conversationId}`)
       else loadHome()
     } finally {
@@ -270,7 +272,7 @@ export default function Home() {
                   shape={isSeller ? 'square' : 'circle'}
                 />
               )
-              const isOwnPost = isSeller ? displayPost.seller_id === ownSellerId : displayPost.author_user_id === ownUserId
+              const isOwnPost = isSeller ? ownSellerIds.has(displayPost.seller_id) : displayPost.author_user_id === ownUserId
               const isFollowingAuthor = isSeller ? followedSellerIds.has(displayPost.seller_id) : followedUserIds.has(displayPost.author_user_id)
               return (
                 <Card key={post.id} className="p-4">

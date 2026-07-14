@@ -6,6 +6,7 @@ import { useSupabaseClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { formatNaira } from '@/lib/format'
 import { makeSlug } from '@/lib/slug'
+import { resolveActiveSellerId, setStoredActiveSellerId } from '@/lib/activeSeller'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { MetricCard } from '@/components/ui/Stat'
@@ -13,7 +14,10 @@ import { MetricCard } from '@/components/ui/Stat'
 export default function DashboardPage() {
   const { user } = useUser()
   const supabase = useSupabaseClient()
-  const [seller, setSeller] = useState<any>(null)
+  const [sellers, setSellers] = useState<any[]>([])
+  const [activeSellerId, setActiveSellerId] = useState<string | null>(null)
+  const [maxBusinesses, setMaxBusinesses] = useState(1)
+  const seller = sellers.find((s) => s.id === activeSellerId) ?? null
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -82,31 +86,55 @@ export default function DashboardPage() {
     setEditingBiz(false)
   }
 
+  async function loadProducts(sellerId: string) {
+    const { data: productRows } = await supabase
+      .from('products').select('*').eq('seller_id', sellerId)
+      .order('created_at', { ascending: false })
+    setProducts(productRows ?? [])
+  }
+
   async function loadData() {
     if (!user) return
 
     const { data: userRow } = await supabase
-      .from('users').select('id').eq('clerk_id', user.id).single()
+      .from('users').select('id, max_businesses').eq('clerk_id', user.id).single()
     if (!userRow) { setLoading(false); return }
+    setMaxBusinesses(userRow.max_businesses ?? 1)
 
-    const { data: sellerRow } = await supabase
-      .from('sellers').select('*').eq('user_id', userRow.id).single()
-    setSeller(sellerRow)
-    if (sellerRow) {
-      setBizName(sellerRow.business_name ?? '')
-      setBizSlug(sellerRow.slug ?? '')
-    }
+    const { data: sellerRows } = await supabase
+      .from('sellers').select('*').eq('user_id', userRow.id).order('created_at', { ascending: true })
+    const allSellers = sellerRows ?? []
+    setSellers(allSellers)
 
-    if (sellerRow) {
-      const { data: productRows } = await supabase
-        .from('products').select('*').eq('seller_id', sellerRow.id)
-        .order('created_at', { ascending: false })
-      setProducts(productRows ?? [])
+    const resolved = resolveActiveSellerId(allSellers)
+    setActiveSellerId(resolved)
+    const activeSeller = allSellers.find((s) => s.id === resolved) ?? null
+    if (activeSeller) {
+      setBizName(activeSeller.business_name ?? '')
+      setBizSlug(activeSeller.slug ?? '')
+      await loadProducts(activeSeller.id)
+    } else {
+      setProducts([])
     }
     setLoading(false)
   }
 
   useEffect(() => { loadData() }, [user])
+
+  function switchSeller(id: string) {
+    setStoredActiveSellerId(id)
+    setActiveSellerId(id)
+    setEditingBiz(false)
+    setShowForm(false)
+    const next = sellers.find((s) => s.id === id)
+    setBizName(next?.business_name ?? '')
+    setBizSlug(next?.slug ?? '')
+    loadProducts(id)
+  }
+
+  function updateActiveSellerLocal(patch: Record<string, any>) {
+    setSellers((prev) => prev.map((s) => (s.id === activeSellerId ? { ...s, ...patch } : s)))
+  }
 
   async function addProduct() {
     if (!seller || !name || !price) return
@@ -166,14 +194,14 @@ export default function DashboardPage() {
   }
 
   async function submitIdentityDocument() {
-    if (!identityDraftUrl) return
+    if (!identityDraftUrl || !seller) return
     setIdentitySubmitting(true)
     setIdentityError('')
     try {
       const res = await fetch('/api/agents/verification/identity-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentUrl: identityDraftUrl }),
+        body: JSON.stringify({ documentUrl: identityDraftUrl, sellerId: seller.id }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Something went wrong')
@@ -197,6 +225,33 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-merqt-bg py-8 px-5">
       <div className="max-w-2xl mx-auto">
 
+        {(sellers.length > 1 || sellers.length < maxBusinesses) && (
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            {sellers.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => switchSeller(s.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                  s.id === activeSellerId
+                    ? 'bg-merqt-indigo text-merqt-surface border-merqt-indigo'
+                    : 'bg-merqt-surface border-merqt-border text-merqt-text-muted'
+                }`}
+              >
+                {s.business_name}
+              </button>
+            ))}
+            {sellers.length < maxBusinesses && (
+              <Link
+                href="/onboarding"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold border border-dashed border-merqt-indigo text-merqt-indigo"
+              >
+                + Add business
+              </Link>
+            )}
+          </div>
+        )}
+
         <div className="relative h-32 sm:h-40 rounded-card overflow-hidden mb-4 bg-merqt-indigo-soft">
           {seller.cover_photo_url && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -206,7 +261,7 @@ export default function DashboardPage() {
             uploadPreset="merqt_products"
             onSuccess={async (result: any) => {
               const cover_photo_url = result.info.secure_url
-              setSeller((prev: any) => ({ ...prev, cover_photo_url }))
+              updateActiveSellerLocal({ cover_photo_url })
               await supabase.from('sellers').update({ cover_photo_url }).eq('id', seller.id)
             }}
           >
@@ -239,7 +294,7 @@ export default function DashboardPage() {
                 uploadPreset="merqt_products"
                 onSuccess={async (result: any) => {
                   const logo_url = result.info.secure_url
-                  setSeller((prev: any) => ({ ...prev, logo_url }))
+                  updateActiveSellerLocal({ logo_url })
                   await supabase.from('sellers').update({ logo_url }).eq('id', seller.id)
                 }}
               >
@@ -374,7 +429,7 @@ export default function DashboardPage() {
               checked={!!seller.licensed}
               onChange={async (e) => {
                 const licensed = e.target.checked
-                setSeller((prev: any) => ({ ...prev, licensed }))
+                updateActiveSellerLocal({ licensed })
                 await supabase.from('sellers').update({ licensed }).eq('id', seller.id)
               }}
             />

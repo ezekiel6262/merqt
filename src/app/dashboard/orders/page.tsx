@@ -6,6 +6,7 @@ import { useSupabaseClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { formatNaira } from '@/lib/format'
 import { DISPUTE_CATEGORY_LABEL } from '@/lib/disputes'
+import { resolveActiveSellerId } from '@/lib/activeSeller'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { StatusPill, TypeTag } from '@/components/ui/StatusPill'
@@ -65,6 +66,8 @@ export default function SellerOrdersPage() {
 
   const [confirmingCancelId, setConfirmingCancelId] = useState<string | null>(null)
   const [cancelReasonDraft, setCancelReasonDraft] = useState<Record<string, string>>({})
+  const [activeSellerCount, setActiveSellerCount] = useState(0)
+  const [activeSellerName, setActiveSellerName] = useState('')
 
   async function loadOrders() {
     if (!user) return
@@ -73,14 +76,18 @@ export default function SellerOrdersPage() {
       .from('users').select('id').eq('clerk_id', user.id).single()
     if (!userRow) { setLoading(false); return }
 
-    const { data: sellerRow } = await supabase
-      .from('sellers').select('id').eq('user_id', userRow.id).single()
-    if (!sellerRow) { setLoading(false); return }
+    const { data: sellerRows } = await supabase
+      .from('sellers').select('id, business_name').eq('user_id', userRow.id).order('created_at', { ascending: true })
+    const mySellers = sellerRows ?? []
+    setActiveSellerCount(mySellers.length)
+    const activeSellerId = resolveActiveSellerId(mySellers)
+    if (!activeSellerId) { setLoading(false); return }
+    setActiveSellerName(mySellers.find((s) => s.id === activeSellerId)?.business_name ?? '')
 
     const { data: orderRows } = await supabase
       .from('orders')
       .select('*, product:products(name, type), buyer:users(name, email)')
-      .eq('seller_id', sellerRow.id)
+      .eq('seller_id', activeSellerId)
       .order('created_at', { ascending: false })
 
     setOrders(orderRows ?? [])
@@ -88,7 +95,7 @@ export default function SellerOrdersPage() {
     const { data: requestRows } = await supabase
       .from('buyer_requests')
       .select('*, buyer:users(name)')
-      .eq('responding_seller_id', sellerRow.id)
+      .eq('responding_seller_id', activeSellerId)
       .order('created_at', { ascending: false })
 
     setBuyerRequests(requestRows ?? [])
@@ -96,7 +103,7 @@ export default function SellerOrdersPage() {
     const { data: offerRows } = await supabase
       .from('offers')
       .select('*, product:products(name, price), buyer:users(name)')
-      .eq('seller_id', sellerRow.id)
+      .eq('seller_id', activeSellerId)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
 
@@ -184,10 +191,16 @@ export default function SellerOrdersPage() {
     <div className="min-h-screen bg-merqt-bg py-8 px-5">
       <div className="max-w-2xl mx-auto">
 
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-1">
           <h1 className="font-serif text-2xl font-semibold text-merqt-text">Incoming orders and requests</h1>
           <Link href="/dashboard" className="text-sm text-merqt-indigo font-semibold">Back to dashboard</Link>
         </div>
+        {activeSellerCount > 1 && (
+          <p className="text-xs text-merqt-text-muted mb-4">
+            Showing orders for <span className="font-semibold">{activeSellerName}</span> - switch businesses from the dashboard.
+          </p>
+        )}
+        {activeSellerCount <= 1 && <div className="mb-5" />}
 
         {/* Filter tabs */}
         <Card className="p-1 flex gap-1 mb-5">

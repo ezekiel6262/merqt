@@ -21,14 +21,16 @@ export async function POST(req: Request) {
   const { userId } = auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { documentUrl } = await req.json()
+  const { documentUrl, sellerId } = await req.json()
   if (!documentUrl) return NextResponse.json({ error: 'documentUrl is required' }, { status: 400 })
+  if (!sellerId) return NextResponse.json({ error: 'sellerId is required' }, { status: 400 })
 
   const admin = createAdminClient()
   const { data: userRow } = await admin.from('users').select('id').eq('clerk_id', userId).single()
   if (!userRow) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const { data: sellerRow } = await admin.from('sellers').select('id, business_name').eq('user_id', userRow.id).single()
+  const { data: sellerRow } = await admin
+    .from('sellers').select('id, business_name').eq('id', sellerId).eq('user_id', userRow.id).single()
   if (!sellerRow) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // This is NOT a legal identity check - it cannot confirm the document is

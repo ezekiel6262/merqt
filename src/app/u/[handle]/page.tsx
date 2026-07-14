@@ -20,11 +20,12 @@ export default async function UserProfilePage({
 
   if (!profileUser) notFound()
 
-  const { data: seller } = await supabase
+  const { data: sellers } = await supabase
     .from('sellers')
     .select('slug, business_name')
     .eq('user_id', profileUser.id)
-    .single()
+    .order('created_at', { ascending: true })
+    .limit(1)
 
-  return <UserProfileClient profileUser={profileUser} seller={seller ?? null} />
+  return <UserProfileClient profileUser={profileUser} seller={sellers?.[0] ?? null} />
 }

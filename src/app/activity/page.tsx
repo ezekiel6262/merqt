@@ -90,10 +90,11 @@ function ActivityInner() {
     const userId = await ensureUserRow(supabase, user)
     setOwnUserId(userId)
 
-    const { data: sellerRow } = await supabase.from('sellers').select('id').eq('user_id', userId).single()
+    const { data: sellerRows } = await supabase.from('sellers').select('id').eq('user_id', userId)
+    const sellerIds = (sellerRows ?? []).map((s) => s.id)
 
-    const orFilter = sellerRow
-      ? `buyer_id.eq.${userId},seller_id.eq.${sellerRow.id}`
+    const orFilter = sellerIds.length > 0
+      ? `buyer_id.eq.${userId},seller_id.in.(${sellerIds.join(',')})`
       : `buyer_id.eq.${userId}`
 
     const { data: convoRows } = await supabase

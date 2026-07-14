@@ -12,6 +12,7 @@ import { computeTrustBadges } from '@/lib/badges'
 import { haversineKm } from '@/lib/geo'
 import { useSupabaseClient } from '@/lib/supabase/client'
 import { ensureUserRow } from '@/lib/ensureUser'
+import { resolveActiveSellerId } from '@/lib/activeSeller'
 import { URGENCY_OPTIONS, urgencyClasses, urgencyLabel, respondToRequest } from '@/lib/requests'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -124,10 +125,11 @@ export function DiscoverClient({ sellers, initialRequests }: { sellers: any[]; i
     setRespondingId(request.id)
     try {
       const userId = await ensureUserRow(supabase, user)
-      const { data: sellerRow } = await supabase.from('sellers').select('id').eq('user_id', userId).single()
-      if (!sellerRow) { router.push('/onboarding'); return }
+      const { data: sellerRows } = await supabase.from('sellers').select('id').eq('user_id', userId)
+      const sellerId = resolveActiveSellerId(sellerRows ?? [])
+      if (!sellerId) { router.push('/onboarding'); return }
 
-      const conversationId = await respondToRequest(supabase, request, sellerRow.id, userId)
+      const conversationId = await respondToRequest(supabase, request, sellerId, userId)
       if (conversationId) {
         router.push(`/activity?tab=messages&convo=${conversationId}`)
       } else {

@@ -22,14 +22,15 @@ export async function POST(req: Request) {
   const { data: userRow } = await admin.from('users').select('id').eq('clerk_id', userId).single()
   if (!userRow) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const { data: sellerRow } = await admin.from('sellers').select('id').eq('user_id', userRow.id).single()
-  if (!sellerRow) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const { data: sellerRows } = await admin.from('sellers').select('id').eq('user_id', userRow.id)
+  const sellerIds = (sellerRows ?? []).map((s) => s.id)
+  if (sellerIds.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { data: order } = await admin
     .from('orders')
     .select('*, product:products(name, type)')
     .eq('id', orderId)
-    .eq('seller_id', sellerRow.id)
+    .in('seller_id', sellerIds)
     .single()
   if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
